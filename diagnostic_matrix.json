@@ -1,0 +1,135 @@
+{
+  "errors": [
+    {
+      "target": "ʏ",
+      "user": "u",
+      "feedback_en": "Your lips are too relaxed. Round them as for 'O', but pronounce 'I'.",
+      "feedback_ru": "Ваши губы слишком расслаблены. Округлите их, как для 'O', но произносите 'И'.",
+      "feedback_de": "Ihre Lippen sind zu entspannt. Runden Sie sie wie für 'O', aber sprechen Sie 'I' aus."
+    },
+    {
+      "target": "yː",
+      "user": "u",
+      "feedback_en": "Your lips are too relaxed. Round them as for 'O', but pronounce a long 'I'.",
+      "feedback_ru": "Ваши губы слишком расслаблены. Округлите их, как для 'O', но произносите долгий 'И'.",
+      "feedback_de": "Ihre Lippen sind zu entspannt. Runden Sie sie wie für 'O', aber sprechen Sie ein langes 'I' aus."
+    },
+    {
+      "target": "ç",
+      "user": "ʃ",
+      "feedback_en": "The sound is too hissing. Raise the middle of your tongue to the palate, not the tip.",
+      "feedback_ru": "Звук слишком шипящий. Поднимите середину языка к небу, а не кончик.",
+      "feedback_de": "Der Laut ist zu zischend. Heben Sie die Mitte Ihrer Zunge zum Gaumen, nicht die Spitze."
+    },
+    {
+      "target": "h",
+      "user": "x",
+      "feedback_en": "German 'h' is just a breath. Don't tense your throat.",
+      "feedback_ru": "Немецкое 'h' — это просто выдох. Не напрягайте горло.",
+      "feedback_de": "Das deutsche 'h' ist nur ein Atemzug. Spannen Sie Ihren Hals nicht an."
+    },
+    {
+      "target": "ɐ",
+      "user": "r",
+      "feedback_en": "At the end of a word, German 'r' becomes a vowel. Try pronouncing a short 'a'.",
+      "feedback_ru": "В конце слова немецкое 'r' превращается в гласный. Попробуйте произнести краткое 'а'.",
+      "feedback_de": "Am Ende eines Wortes wird das deutsche 'r' zu einem Vokal. Versuchen Sie, ein kurzes 'a' auszusprechen."
+    },
+    {
+      "target": "ʁ",
+      "user": "r",
+      "feedback_en": "German 'r' is not rolled. It's a guttural sound from the back of your throat.",
+      "feedback_ru": "Немецкое 'r' не раскатистое. Это гортанный звук из задней части горла.",
+      "feedback_de": "Das deutsche 'r' wird nicht gerollt. Es ist ein Kehllaut aus dem hinteren Teil Ihres Halses."
+    },
+    {
+      "target": "eː",
+      "user": "ɛ",
+      "feedback_en": "This is a long vowel. Hold it longer and keep your mouth more closed.",
+      "feedback_ru": "Это долгий гласный. Держите его дольше и держите рот более закрытым.",
+      "feedback_de": "Dies ist ein langer Vokal. Halten Sie ihn länger und halten Sie Ihren Mund geschlossener."
+    },
+    {
+      "target": "iː",
+      "user": "ɪ",
+      "feedback_en": "This is a long vowel. Hold it longer and keep your tongue higher.",
+      "feedback_ru": "Это долгий гласный. Держите его дольше и держите язык выше.",
+      "feedback_de": "Dies ist ein langer Vokal. Halten Sie ihn länger und halten Sie Ihre Zunge höher."
+    },
+    {
+      "target": "uː",
+      "user": "ʊ",
+      "feedback_en": "This is a long vowel. Hold it longer and round your lips more.",
+      "feedback_ru": "Это долгий гласный. Держите его дольше и округлите губы больше.",
+      "feedback_de": "Dies ist ein langer Vokal. Halten Sie ihn länger und runden Sie Ihre Lippen mehr."
+    },
+    {
+      "target": "oː",
+      "user": "ɔ",
+      "feedback_en": "This is a long vowel. Hold it longer and round your lips more.",
+      "feedback_ru": "Это долгий гласный. Держите его дольше и округлите губы больше.",
+      "feedback_de": "Dies ist ein langer Vokal. Halten Sie ihn länger und runden Sie Ihre Lippen mehr."
+    },
+    {
+      "target": "aː",
+      "user": "a",
+      "feedback_en": "This is a long vowel. Hold it longer.",
+      "feedback_ru": "Это долгий гласный. Держите его дольше.",
+      "feedback_de": "Dies ist ein langer Vokal. Halten Sie ihn länger."
+    },
+    {
+      "target": "ə",
+      "user": "e",
+      "feedback_en": "This is a schwa sound - a very relaxed, neutral vowel. Don't tense your tongue.",
+      "feedback_ru": "Это звук шва - очень расслабленный, нейтральный гласный. Не напрягайте язык.",
+      "feedback_de": "Dies ist ein Schwa-Laut - ein sehr entspannter, neutraler Vokal. Spannen Sie Ihre Zunge nicht an."
+    },
+    {
+      "target": "b",
+      "user": "p",
+      "feedback_en": "This should be voiced. Vibrate your vocal cords.",
+      "feedback_ru": "Это должно быть звонким. Вибрируйте голосовыми связками.",
+      "feedback_de": "Dies sollte stimmhaft sein. Lassen Sie Ihre Stimmbänder vibrieren."
+    },
+    {
+      "target": "d",
+      "user": "t",
+      "feedback_en": "This should be voiced. Vibrate your vocal cords.",
+      "feedback_ru": "Это должно быть звонким. Вибрируйте голосовыми связками.",
+      "feedback_de": "Dies sollte stimmhaft sein. Lassen Sie Ihre Stimmbänder vibrieren."
+    },
+    {
+      "target": "g",
+      "user": "k",
+      "feedback_en": "This should be voiced. Vibrate your vocal cords.",
+      "feedback_ru": "Это должно быть звонким. Вибрируйте голосовыми связками.",
+      "feedback_de": "Dies sollte stimmhaft sein. Lassen Sie Ihre Stimmbänder vibrieren."
+    },
+    {
+      "target": "z",
+      "user": "s",
+      "feedback_en": "This should be voiced. Vibrate your vocal cords.",
+      "feedback_ru": "Это должно быть звонким. Вибрируйте голосовыми связками.",
+      "feedback_de": "Dies sollte stimmhaft sein. Lassen Sie Ihre Stimmbänder vibrieren."
+    },
+    {
+      "target": "v",
+      "user": "f",
+      "feedback_en": "This should be voiced. Vibrate your vocal cords.",
+      "feedback_ru": "Это должно быть звонким. Вибрируйте голосовыми связками.",
+      "feedback_de": "Dies sollte stimmhaft sein. Lassen Sie Ihre Stimmbänder vibrieren."
+    },
+    {
+      "target": "ŋ",
+      "user": "n",
+      "feedback_en": "This is a velar nasal. The back of your tongue should touch the soft palate.",
+      "feedback_ru": "Это велярный носовой. Задняя часть языка должна касаться мягкого неба.",
+      "feedback_de": "Dies ist ein velarer Nasal. Der hintere Teil Ihrer Zunge sollte den weichen Gaumen berühren."
+    }
+  ],
+  "default_feedback_en": "Try to match the target sound more closely. Pay attention to the position of your tongue and lips.",
+  "default_feedback_ru": "Постарайтесь точнее соответствовать целевому звуку. Обратите внимание на положение языка и губ.",
+  "default_feedback_de": "Versuchen Sie, dem Zielklang näher zu kommen. Achten Sie auf die Position Ihrer Zunge und Lippen."
+}
+
+
