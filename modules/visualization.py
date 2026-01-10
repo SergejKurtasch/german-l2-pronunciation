@@ -25,7 +25,6 @@ def create_side_by_side_comparison(
     
     # Expected row
     html += "<div style='margin-bottom: 10px;'>"
-    html += "<strong>Expected:</strong> "
     for i, (expected, recognized) in enumerate(aligned_pairs):
         if expected is None:
             continue
@@ -35,7 +34,6 @@ def create_side_by_side_comparison(
     
     # Recognized row
     html += "<div>"
-    html += "<strong>Recognized:</strong> "
     for i, (expected, recognized) in enumerate(aligned_pairs):
         if recognized is None:
             html += "<span style='color: gray; padding: 2px 4px;'>-</span> "
@@ -103,6 +101,53 @@ def create_colored_text(
     return html
 
 
+def create_text_comparison_view(
+    expected_text: str,
+    recognized_text: str,
+    wer_result: Optional[Dict] = None
+) -> str:
+    """
+    Create text comparison view when WER is too high.
+    
+    Args:
+        expected_text: Expected text
+        recognized_text: Recognized text from ASR
+        wer_result: Optional WER calculation result
+        
+    Returns:
+        HTML string with text comparison
+    """
+    html = "<div style='padding: 15px; background: #fff3cd; border-radius: 5px; border-left: 4px solid #ffc107;'>"
+    html += "<h4 style='color: #856404; margin-top: 0;'>Text Comparison (High Word Error Rate)</h4>"
+    
+    if wer_result:
+        html += f"<div style='margin-bottom: 15px; padding: 10px; background: #fff; border-radius: 4px;'>"
+        html += f"<p style='margin: 0;'><strong>Word Error Rate (WER):</strong> {wer_result['wer']:.2%}</p>"
+        html += f"<p style='margin: 5px 0 0 0;'><strong>Correct words:</strong> {wer_result['hits']} / {wer_result['total_reference_words']}</p>"
+        html += f"<p style='margin: 5px 0 0 0;'><strong>Substitutions:</strong> {wer_result['substitutions']}, "
+        html += f"<strong>Deletions:</strong> {wer_result['deletions']}, "
+        html += f"<strong>Insertions:</strong> {wer_result['insertions']}</p>"
+        html += "</div>"
+    
+    html += "<div style='margin-bottom: 15px; padding: 10px; background: #e8f4f8; border-left: 4px solid #3498db; border-radius: 4px;'>"
+    html += "<p style='margin: 0; font-weight: bold; color: #2c3e50;'>Expected Text:</p>"
+    html += f"<p style='margin: 5px 0 0 0; color: #2c3e50; font-size: 16px;'>{expected_text}</p>"
+    html += "</div>"
+    
+    html += "<div style='padding: 10px; background: #f0f8e8; border-left: 4px solid #27ae60; border-radius: 4px;'>"
+    html += "<p style='margin: 0; font-weight: bold; color: #2c3e50;'>Recognized Text:</p>"
+    html += f"<p style='margin: 5px 0 0 0; color: #2c3e50; font-size: 16px;'>{recognized_text or 'N/A'}</p>"
+    html += "</div>"
+    
+    html += "<div style='margin-top: 15px; padding: 10px; background: #f8d7da; border-left: 4px solid #dc3545; border-radius: 4px;'>"
+    html += "<p style='margin: 0; color: #721c24;'><strong>Note:</strong> The recognized text differs significantly from the expected text. "
+    html += "Phoneme-level analysis has been skipped. Please try to pronounce the expected text more accurately.</p>"
+    html += "</div>"
+    
+    html += "</div>"
+    return html
+
+
 def create_detailed_report(
     aligned_pairs: List[Dict],
     feedback_list: List[Dict],
@@ -112,7 +157,10 @@ def create_detailed_report(
     model2_diagnostic_results: Optional[List[Dict]] = None,
     model3_name: Optional[str] = None,
     model3_aligned_pairs: Optional[List[Dict]] = None,
-    model3_diagnostic_results: Optional[List[Dict]] = None
+    model3_diagnostic_results: Optional[List[Dict]] = None,
+    wer_result: Optional[Dict] = None,
+    per_result: Optional[Dict] = None,
+    recognized_text: Optional[str] = None
 ) -> str:
     """
     Create detailed report with feedback for one, two, or three models.
@@ -127,12 +175,43 @@ def create_detailed_report(
         model3_name: Optional name of third model
         model3_aligned_pairs: Optional alignment results for model 3
         model3_diagnostic_results: Optional diagnostic results for model 3
+        wer_result: Optional WER calculation result
+        per_result: Optional PER calculation result
+        recognized_text: Optional recognized text from ASR
         
     Returns:
         HTML string with detailed report
     """
     html = "<div style='padding: 15px; background: #f9f9f9; border-radius: 5px;'>"
     html += "<h4 style='color: #333; margin-top: 0;'>Detailed Report</h4>"
+    
+    # Metrics section (WER and PER)
+    if wer_result or per_result or recognized_text:
+        html += "<div style='margin-bottom: 20px; padding: 10px; background: #e1f5fe; border-left: 4px solid #0288d1; border-radius: 4px;'>"
+        html += "<h5 style='color: #2c3e50; margin-top: 0;'>Metrics</h5>"
+        
+        if recognized_text:
+            html += f"<p style='color: #2c3e50;'><strong>Recognized text:</strong> {recognized_text}</p>"
+        
+        if wer_result:
+            html += f"<p style='color: #2c3e50;'><strong>WER (Word Error Rate):</strong> {wer_result['wer']:.2%}</p>"
+            html += f"<p style='color: #2c3e50; margin-left: 20px;'>"
+            html += f"Substitutions: {wer_result['substitutions']}, "
+            html += f"Deletions: {wer_result['deletions']}, "
+            html += f"Insertions: {wer_result['insertions']}, "
+            html += f"Correct: {wer_result['hits']} / {wer_result['total_reference_words']}"
+            html += "</p>"
+        
+        if per_result:
+            html += f"<p style='color: #2c3e50;'><strong>PER (Phoneme Error Rate):</strong> {per_result['per']:.2%}</p>"
+            html += f"<p style='color: #2c3e50; margin-left: 20px;'>"
+            html += f"Substitutions: {per_result['substitutions']}, "
+            html += f"Deletions: {per_result['deletions']}, "
+            html += f"Insertions: {per_result['insertions']}, "
+            html += f"Total expected: {per_result['total_expected']}"
+            html += "</p>"
+        
+        html += "</div>"
     
     # Model 1 Statistics (may be PRIMARY model if available)
     total = len(aligned_pairs)
@@ -338,8 +417,10 @@ def create_simple_phoneme_comparison(
     recognized_str = ' '.join(recognized_phonemes)
     
     html = "<div style='font-family: monospace; font-size: 14px;'>"
-    html += f"<p><strong>Expected:</strong> {expected_str}</p>"
-    html += f"<p><strong>Recognized:</strong> {recognized_str}</p>"
+    if expected_str:
+        html += f"<p>{expected_str}</p>"
+    if recognized_str:
+        html += f"<p>{recognized_str}</p>"
     html += "</div>"
     
     return html

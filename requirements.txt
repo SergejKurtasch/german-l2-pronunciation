@@ -19,6 +19,12 @@ biopython>=1.81
 silero-vad>=4.0.0
 # Alternative: webrtcvad (optional, for fallback)
 
+# ASR (Speech-to-Text)
+openai-whisper>=20231117
+
+# Metrics
+jiwer>=3.0.0
+
 # Frontend
 gradio>=4.0.0
 

@@ -34,6 +34,8 @@ from modules.visualization import (
     create_simple_phoneme_comparison
 )
 from modules.phoneme_validator import get_optional_validator
+from modules.speech_to_text import get_speech_recognizer
+from modules.metrics import calculate_wer, calculate_per
 
 # Global instances
 vad_detector = None
@@ -43,11 +45,12 @@ phoneme_filter = None
 forced_aligner = None
 diagnostic_engine = None
 optional_validator = None
+asr_recognizer = None
 
 
 def initialize_components():
     """Initialize global components."""
-    global vad_detector, audio_normalizer, phoneme_recognizer, phoneme_filter, forced_aligner, diagnostic_engine, optional_validator
+    global vad_detector, audio_normalizer, phoneme_recognizer, phoneme_filter, forced_aligner, diagnostic_engine, optional_validator, asr_recognizer
     
     if audio_normalizer is None:
         try:
@@ -94,6 +97,20 @@ def initialize_components():
     if optional_validator is None:
         optional_validator = get_optional_validator()
         print("Optional validator initialized")
+    
+    if asr_recognizer is None and config.ASR_ENABLED:
+        try:
+            asr_recognizer = get_speech_recognizer(
+                model_size=config.ASR_MODEL,
+                device=config.ASR_DEVICE
+            )
+            if asr_recognizer:
+                print(f"ASR recognizer (Whisper {config.ASR_MODEL}) initialized")
+            else:
+                print("Warning: ASR recognizer not available (whisper not installed)")
+        except Exception as e:
+            print(f"Warning: ASR recognizer initialization failed: {e}")
+            asr_recognizer = None
 
 
 def process_pronunciation(
@@ -187,10 +204,79 @@ def process_pronunciation(
             else:
                 vad_info = {'enabled': False, 'reason': 'VAD not available'}
             
-            # Stage 2: G2P - Get expected phonemes
-            expected_phonemes_dict = get_expected_phonemes(text)
+            # Stage 2: ASR - Speech-to-Text recognition
+            recognized_text = None
+            wer_result = None
+            if asr_recognizer and config.ASR_ENABLED:
+                try:
+                    recognized_text = asr_recognizer.transcribe(
+                        trimmed_audio_path,
+                        language=config.ASR_LANGUAGE
+                    )
+                    print(f"ASR: Recognized text: '{recognized_text}'")
+                    
+                    # Stage 3: WER Calculation
+                    if recognized_text:
+                        wer_result = calculate_wer(text, recognized_text)
+                        print(f"WER: {wer_result['wer']:.2%} (Substitutions: {wer_result['substitutions']}, "
+                              f"Deletions: {wer_result['deletions']}, Insertions: {wer_result['insertions']})")
+                except Exception as e:
+                    print(f"Warning: ASR failed: {e}")
+                    recognized_text = None
+                    wer_result = None
+            
+            # Stage 4: Check WER threshold - skip phoneme analysis if WER is too high
+            if wer_result and wer_result['wer'] > config.WER_THRESHOLD and config.WER_SKIP_PHONEME_ANALYSIS:
+                # High WER - show only text comparison
+                from modules.visualization import create_text_comparison_view
+                
+                # Load trimmed audio for return
+                trimmed_audio_data = None
+                if trimmed_audio_path and Path(trimmed_audio_path).exists():
+                    try:
+                        trimmed_audio, trimmed_sr = sf.read(trimmed_audio_path)
+                        if len(trimmed_audio.shape) > 1:
+                            trimmed_audio = np.mean(trimmed_audio, axis=1)
+                        trimmed_audio_data = (trimmed_sr, trimmed_audio)
+                    except Exception as e:
+                        print(f"Warning: Failed to load trimmed audio for output: {e}")
+                
+                # Create simplified view
+                comparison_html = create_text_comparison_view(text, recognized_text or "", wer_result)
+                empty_html = "<div style='color: gray; padding: 10px;'>Phoneme analysis skipped due to high WER.</div>"
+                
+                technical_html = f"""
+                <div style='padding: 10px; background: #fff3cd; border-radius: 5px; border-left: 4px solid #ffc107;'>
+                    <h4>High Word Error Rate Detected</h4>
+                    <p><strong>WER:</strong> {wer_result['wer']:.2%} (Threshold: {config.WER_THRESHOLD:.2%})</p>
+                    <p>Phoneme analysis has been skipped because the recognized text differs significantly from the expected text.</p>
+                    <ul>
+                        <li><strong>Expected:</strong> {text}</li>
+                        <li><strong>Recognized:</strong> {recognized_text or 'N/A'}</li>
+                        <li><strong>Substitutions:</strong> {wer_result['substitutions']}</li>
+                        <li><strong>Deletions:</strong> {wer_result['deletions']}</li>
+                        <li><strong>Insertions:</strong> {wer_result['insertions']}</li>
+                        <li><strong>Correct words:</strong> {wer_result['hits']} / {wer_result['total_reference_words']}</li>
+                    </ul>
+                </div>
+                """
+                
+                return (
+                    empty_html,
+                    empty_html,
+                    comparison_html,
+                    comparison_html,
+                    comparison_html,
+                    technical_html,
+                    trimmed_audio_data
+                )
+            
+            # Stage 5: G2P - Get phonemes from recognized text (or expected text if ASR not available)
+            # Use recognized text for phoneme analysis if available, otherwise use expected text
+            text_for_phonemes = recognized_text if recognized_text else text
+            expected_phonemes_dict = get_expected_phonemes(text_for_phonemes)
             expected_phonemes = [ph.get('phoneme', '') for ph in expected_phonemes_dict]
-            print(f"Expected phonemes: {len(expected_phonemes)}")
+            print(f"Expected phonemes (from {'recognized' if recognized_text else 'expected'} text): {len(expected_phonemes)}")
             
             if not expected_phonemes:
                 error_html = "<div style='color: red; padding: 10px;'>Failed to extract expected phonemes from text.</div>"
@@ -272,10 +358,15 @@ def process_pronunciation(
             
             print(f"Aligned pairs: {len(aligned_pairs)}, score: {alignment_score:.2f}")
             
-            # Stage 7: Diagnostic Analysis
+            # Stage 7: PER Calculation
+            per_result = calculate_per(aligned_pairs)
+            print(f"PER: {per_result['per']:.2%} (Substitutions: {per_result['substitutions']}, "
+                  f"Deletions: {per_result['deletions']}, Insertions: {per_result['insertions']})")
+            
+            # Stage 8: Diagnostic Analysis
             diagnostic_results = diagnostic_engine.analyze_pronunciation(aligned_pairs)
             
-            # Stage 8: Optional Validation
+            # Stage 9: Optional Validation
             if enable_validation and optional_validator:
                 # For each error, try to validate with trained model
                 for i, result in enumerate(diagnostic_results):
@@ -311,9 +402,12 @@ def process_pronunciation(
                                 if validation_result.get('is_correct'):
                                     result['is_correct'] = True  # Override if validation says correct
             
-            # Stage 9: Visualization
-            # Output 1: Expected phonemes
-            expected_html = create_simple_phoneme_comparison(expected_phonemes, [])
+            # Stage 10: Visualization
+            # Output 1: Recognized text (what the person actually said)
+            if recognized_text:
+                expected_html = f"<div style='font-family: monospace; font-size: 14px;'><p>{recognized_text}</p></div>"
+            else:
+                expected_html = "<div style='font-family: monospace; font-size: 14px;'><p>No recognized text available</p></div>"
             
             # Output 2: Recognized phonemes
             recognized_html = create_simple_phoneme_comparison([], recognized_phonemes)
@@ -342,25 +436,46 @@ def process_pronunciation(
             
             colored_text_html = create_colored_text(text, aligned_pairs_dict)
             
-            # Output 5: Detailed report
+            # Output 5: Detailed report (with WER and PER)
             detailed_report_html = create_detailed_report(
                 aligned_pairs_dict,
                 diagnostic_results,
-                text
+                text,
+                wer_result=wer_result if config.SHOW_WER else None,
+                per_result=per_result if config.SHOW_PER else None,
+                recognized_text=recognized_text
             )
             
             # Output 6: Technical information
+            wer_info = ""
+            if wer_result and config.SHOW_WER:
+                wer_info = f"""
+                    <li><strong>WER (Word Error Rate):</strong> {wer_result['wer']:.2%}</li>
+                    <li><strong>WER Details:</strong> {wer_result['substitutions']} substitutions, {wer_result['deletions']} deletions, {wer_result['insertions']} insertions</li>
+                    <li><strong>Recognized text:</strong> {recognized_text or 'N/A'}</li>
+                """
+            
+            per_info = ""
+            if per_result and config.SHOW_PER:
+                per_info = f"""
+                    <li><strong>PER (Phoneme Error Rate):</strong> {per_result['per']:.2%}</li>
+                    <li><strong>PER Details:</strong> {per_result['substitutions']} substitutions, {per_result['deletions']} deletions, {per_result['insertions']} insertions</li>
+                """
+            
             technical_html = f"""
             <div style='padding: 10px; background: #f9f9f9; border-radius: 5px;'>
                 <h4>Technical Information</h4>
                 <ul>
                     <li><strong>VAD:</strong> {'Enabled' if vad_info.get('enabled') else 'Disabled'}</li>
+                    <li><strong>ASR:</strong> {'Enabled' if (asr_recognizer and config.ASR_ENABLED) else 'Disabled'}</li>
                     <li><strong>Expected phonemes:</strong> {len(expected_phonemes)}</li>
                     <li><strong>Model:</strong> {config.MODEL_NAME}</li>
                     <li><strong>Raw phonemes:</strong> {len(raw_phonemes)}</li>
                     <li><strong>Filtered phonemes:</strong> {len(recognized_phonemes)}</li>
                     <li><strong>Aligned pairs:</strong> {len(aligned_pairs)}</li>
                     <li><strong>Alignment score:</strong> {alignment_score:.2f}</li>
+                    {wer_info}
+                    {per_info}
                     <li><strong>Optional validation:</strong> {'Enabled' if enable_validation else 'Disabled'}</li>
                 </ul>
             </div>

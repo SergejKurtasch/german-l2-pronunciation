@@ -15,6 +15,22 @@ PROJECT_ROOT = Path(__file__).parent
 MODEL_NAME = "facebook/wav2vec2-xlsr-53-espeak-cv-ft"
 MODEL_DEVICE = "auto"  # "auto", "cpu", "cuda", "mps"
 
+# ASR (Speech-to-Text) settings
+# Using OpenAI Whisper for transcribing audio to text
+ASR_ENABLED = True  # Enable/disable ASR functionality
+ASR_MODEL = "medium"  # Whisper model size: tiny, base, small, medium, large
+ASR_LANGUAGE = "de"  # Language code for transcription (German)
+ASR_DEVICE = None  # Device for ASR (None = auto-detect, "cpu", "cuda", "mps")
+
+# WER (Word Error Rate) threshold for skipping phoneme analysis
+# If WER > WER_THRESHOLD, skip detailed phoneme analysis and show only text comparison
+WER_THRESHOLD = 0.70  # 0.70 = 70% error rate (30% words correct)
+WER_SKIP_PHONEME_ANALYSIS = True  # Enable/disable skipping phoneme analysis when WER is high
+
+# Metrics display settings
+SHOW_WER = True  # Show WER metric in results
+SHOW_PER = True  # Show PER (Phoneme Error Rate) metric in results
+
 # Diagnostic Matrix path
 DIAGNOSTIC_MATRIX_PATH = PROJECT_ROOT / "diagnostic_matrix.json"
 
