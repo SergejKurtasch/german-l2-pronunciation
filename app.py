@@ -11,6 +11,7 @@ import soundfile as sf
 from pathlib import Path
 import tempfile
 import sys
+import threading
 from typing import List, Dict, Optional, Tuple
 
 # Add project root to path
@@ -31,7 +32,8 @@ from modules.visualization import (
     create_side_by_side_comparison,
     create_colored_text,
     create_detailed_report,
-    create_simple_phoneme_comparison
+    create_simple_phoneme_comparison,
+    create_raw_phonemes_display
 )
 from modules.phoneme_validator import get_optional_validator
 from modules.speech_to_text import get_speech_recognizer
@@ -117,7 +119,7 @@ def process_pronunciation(
     text: str,
     audio_file: Optional[Tuple[int, np.ndarray]] = None,
     enable_validation: bool = False
-) -> Tuple[str, str, str, str, str, str, Optional[Tuple[int, np.ndarray]]]:
+) -> Tuple[str, str, str, str, str, str, str, Optional[Tuple[int, np.ndarray]]]:
     """
     Process pronunciation validation.
     
@@ -134,15 +136,16 @@ def process_pronunciation(
         4. Colored text (HTML)
         5. Detailed report (HTML)
         6. Technical information (HTML)
-        7. Trimmed audio (Tuple[sample_rate, audio_array] or None)
+        7. Raw phonemes (before filtering) (HTML)
+        8. Trimmed audio (Tuple[sample_rate, audio_array] or None)
     """
     if not text or not text.strip():
         error_html = "<div style='color: orange; padding: 10px;'>Please enter German text.</div>"
-        return (error_html, error_html, error_html, error_html, error_html, error_html, None)
+        return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
     
     if audio_file is None:
         error_html = "<div style='color: orange; padding: 10px;'>Please record or upload audio.</div>"
-        return (error_html, error_html, error_html, error_html, error_html, error_html, None)
+        return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
     
     try:
         # Initialize components
@@ -153,7 +156,7 @@ def process_pronunciation(
             sample_rate, audio_array = audio_file
         else:
             error_html = "<div style='color: red; padding: 10px;'>Invalid audio format.</div>"
-            return (error_html, error_html, error_html, error_html, error_html, error_html, None)
+            return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
         
         # Save audio to temporary file
         with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_file:
@@ -261,6 +264,9 @@ def process_pronunciation(
                 </div>
                 """
                 
+                # Create empty raw phonemes display for high WER case
+                raw_phonemes_html = "<div style='color: gray; padding: 10px;'>Raw phonemes not available (phoneme analysis skipped due to high WER).</div>"
+                
                 return (
                     empty_html,
                     empty_html,
@@ -268,6 +274,7 @@ def process_pronunciation(
                     comparison_html,
                     comparison_html,
                     technical_html,
+                    raw_phonemes_html,
                     trimmed_audio_data
                 )
             
@@ -280,7 +287,7 @@ def process_pronunciation(
             
             if not expected_phonemes:
                 error_html = "<div style='color: red; padding: 10px;'>Failed to extract expected phonemes from text.</div>"
-                return (error_html, error_html, error_html, error_html, error_html, error_html, None)
+                return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
             
             # Stage 3: Phoneme Recognition (Wav2Vec2 XLSR-53 eSpeak)
             logits, emissions = phoneme_recognizer.recognize_phonemes(
@@ -315,7 +322,9 @@ def process_pronunciation(
                         trimmed_audio_data = (trimmed_sr, trimmed_audio)
                     except:
                         pass
-                return (error_html, error_html, error_html, error_html, error_html, error_html, trimmed_audio_data)
+                # Create raw phonemes display even if filtered is empty
+                raw_phonemes_html = create_raw_phonemes_display(raw_phonemes)
+                return (error_html, error_html, error_html, error_html, error_html, error_html, raw_phonemes_html, trimmed_audio_data)
             
             # Stage 5: Forced Alignment (for recognized phonemes)
             # Load waveform for forced alignment
@@ -481,6 +490,9 @@ def process_pronunciation(
             </div>
             """
             
+            # Output 7: Raw phonemes (before filtering)
+            raw_phonemes_html = create_raw_phonemes_display(raw_phonemes)
+            
             # Load trimmed audio for return (don't delete it yet)
             trimmed_audio_data = None
             if trimmed_audio_path and Path(trimmed_audio_path).exists():
@@ -500,6 +512,7 @@ def process_pronunciation(
                 colored_text_html,
                 detailed_report_html,
                 technical_html,
+                raw_phonemes_html,
                 trimmed_audio_data
             )
         
@@ -525,17 +538,24 @@ def process_pronunciation(
             </details>
         </div>
         """
-        return (error_html, error_html, error_html, error_html, error_html, error_html, None)
+        return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
+
+
+def load_models_in_background():
+    """Load all models in background thread."""
+    print("Starting background model loading...")
+    try:
+        initialize_components()
+        print("All models loaded successfully in background!")
+    except Exception as e:
+        print(f"Warning: Some components failed to initialize in background: {e}")
 
 
 def create_interface():
     """Create Gradio interface."""
     
-    # Initialize components on startup
-    try:
-        initialize_components()
-    except Exception as e:
-        print(f"Warning: Some components failed to initialize: {e}")
+    # Don't initialize components on startup - let them load in background
+    # This allows browser to open quickly
     
     with gr.Blocks(title="German Pronunciation Diagnostic App (L2-Trainer)", theme=gr.themes.Soft()) as app:
         gr.Markdown("""
@@ -573,8 +593,9 @@ def create_interface():
                 colored_output = gr.HTML(label="4. Colored Text")
                 report_output = gr.HTML(label="5. Detailed Report")
                 technical_output = gr.HTML(label="6. Technical Information")
+                raw_phonemes_output = gr.HTML(label="7. Raw Phonemes (Before Filtering)")
                 trimmed_audio_output = gr.Audio(
-                    label="7. Trimmed Audio (after VAD)",
+                    label="8. Trimmed Audio (after VAD)",
                     type="numpy",
                     visible=True
                 )
@@ -602,6 +623,7 @@ def create_interface():
                 colored_output,
                 report_output,
                 technical_output,
+                raw_phonemes_output,
                 trimmed_audio_output
             ]
         )
@@ -619,5 +641,13 @@ def create_interface():
 
 if __name__ == "__main__":
     app = create_interface()
+    
+    # Start background model loading in a separate thread
+    # This happens while the server is starting up
+    background_thread = threading.Thread(target=load_models_in_background, daemon=True)
+    background_thread.start()
+    
+    # Launch the interface
+    # Browser will open quickly, models will load in background
     app.launch(share=False, server_name="127.0.0.1", server_port=7860)
 

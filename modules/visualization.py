@@ -426,6 +426,35 @@ def create_simple_phoneme_comparison(
     return html
 
 
+def create_raw_phonemes_display(raw_phonemes: List[str]) -> str:
+    """
+    Create display for raw phonemes (before filtering).
+    
+    Args:
+        raw_phonemes: List of raw phoneme strings (before filtering)
+        
+    Returns:
+        HTML string with raw phonemes display
+    """
+    if not raw_phonemes:
+        return "<div style='color: gray; padding: 10px;'>No raw phonemes available.</div>"
+    
+    raw_str = ' '.join(raw_phonemes)
+    
+    html = "<div style='padding: 10px; background: #f0f0f0; border-radius: 5px; border-left: 4px solid #6c757d;'>"
+    html += "<h5 style='color: #2c3e50; margin-top: 0;'>Raw Phonemes (Before Filtering)</h5>"
+    html += f"<p style='color: #2c3e50; margin: 5px 0;'><strong>Total:</strong> {len(raw_phonemes)} phonemes</p>"
+    html += f"<div style='font-family: monospace; font-size: 14px; background: #fff; padding: 10px; border-radius: 4px; margin-top: 10px;'>"
+    html += f"<p style='margin: 0; word-break: break-all;'>{raw_str}</p>"
+    html += "</div>"
+    html += "<p style='color: #6c757d; font-size: 12px; margin-top: 10px; margin-bottom: 0;'>"
+    html += "<em>These are all phonemes recognized by the model before filtering (whitelist and confidence filtering).</em>"
+    html += "</p>"
+    html += "</div>"
+    
+    return html
+
+
 def create_dual_model_comparison(
     model1_name: str,
     model1_phonemes: List[str],
