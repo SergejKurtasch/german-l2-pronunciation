@@ -139,9 +139,8 @@ def process_pronunciation(
         7. Raw phonemes (before filtering) (HTML)
         8. Trimmed audio (Tuple[sample_rate, audio_array] or None)
     """
-    if not text or not text.strip():
-        error_html = "<div style='color: orange; padding: 10px;'>Please enter German text.</div>"
-        return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
+    # Check if text is empty - if so, we'll use ASR to get text from audio
+    text_is_empty = not text or not text.strip()
     
     if audio_file is None:
         error_html = "<div style='color: orange; padding: 10px;'>Please record or upload audio.</div>"
@@ -210,7 +209,29 @@ def process_pronunciation(
             # Stage 2: ASR - Speech-to-Text recognition
             recognized_text = None
             wer_result = None
-            if asr_recognizer and config.ASR_ENABLED:
+            
+            # If text is empty, we MUST use ASR to get text from audio
+            if text_is_empty:
+                if asr_recognizer and config.ASR_ENABLED:
+                    try:
+                        recognized_text = asr_recognizer.transcribe(
+                            trimmed_audio_path,
+                            language=config.ASR_LANGUAGE
+                        )
+                        print(f"ASR: Recognized text (from audio): '{recognized_text}'")
+                        
+                        if not recognized_text or not recognized_text.strip():
+                            error_html = "<div style='color: orange; padding: 10px;'>Could not recognize text from audio. Please try again or enter text manually.</div>"
+                            return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
+                    except Exception as e:
+                        print(f"Error: ASR failed: {e}")
+                        error_html = f"<div style='color: red; padding: 10px;'>Failed to recognize text from audio: {str(e)}</div>"
+                        return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
+                else:
+                    error_html = "<div style='color: orange; padding: 10px;'>ASR is not available. Please enter text manually or enable ASR in configuration.</div>"
+                    return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
+            elif asr_recognizer and config.ASR_ENABLED:
+                # Text is provided, ASR is optional (for comparison)
                 try:
                     recognized_text = asr_recognizer.transcribe(
                         trimmed_audio_path,
@@ -218,7 +239,7 @@ def process_pronunciation(
                     )
                     print(f"ASR: Recognized text: '{recognized_text}'")
                     
-                    # Stage 3: WER Calculation
+                    # Stage 3: WER Calculation (only if text was provided)
                     if recognized_text:
                         wer_result = calculate_wer(text, recognized_text)
                         print(f"WER: {wer_result['wer']:.2%} (Substitutions: {wer_result['substitutions']}, "
@@ -229,7 +250,8 @@ def process_pronunciation(
                     wer_result = None
             
             # Stage 4: Check WER threshold - skip phoneme analysis if WER is too high
-            if wer_result and wer_result['wer'] > config.WER_THRESHOLD and config.WER_SKIP_PHONEME_ANALYSIS:
+            # Skip this check if text was empty (WER not calculated)
+            if not text_is_empty and wer_result and wer_result['wer'] > config.WER_THRESHOLD and config.WER_SKIP_PHONEME_ANALYSIS:
                 # High WER - show only text comparison
                 from modules.visualization import create_text_comparison_view
                 
@@ -298,11 +320,24 @@ def process_pronunciation(
             
             # Decode phonemes (for display)
             decoded_phonemes_str = phoneme_recognizer.decode_phonemes(logits)
+            
+            # #region agent log
+            import json
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"app.py:322","message":"decoded_phonemes_str after decode_phonemes","data":{"decoded_phonemes_str":decoded_phonemes_str,"length":len(decoded_phonemes_str)},"timestamp":int(__import__('time').time()*1000)})+'\n')
+            # #endregion
+            
             raw_phonemes = decoded_phonemes_str.split()
+            
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"B","location":"app.py:323","message":"raw_phonemes after split","data":{"raw_phonemes":raw_phonemes,"count":len(raw_phonemes),"has_dash":any('-' in ph for ph in raw_phonemes)},"timestamp":int(__import__('time').time()*1000)})+'\n')
+            # #endregion
             
             print(f"Raw phonemes: {len(raw_phonemes)}")
             
             # Stage 4: Multi-level Filtering
+            # Note: Filtering is kept for forced alignment (uses ARPABET), but raw_phonemes are used for display and alignment
             filtered_phonemes = phoneme_filter.filter_combined(
                 logits,
                 raw_phonemes,
@@ -312,8 +347,9 @@ def process_pronunciation(
             recognized_phonemes = [ph.get('phoneme', '') for ph in filtered_phonemes]
             print(f"Filtered phonemes: {len(recognized_phonemes)}")
             
-            if not recognized_phonemes:
-                error_html = "<div style='color: orange; padding: 10px;'>No phonemes recognized after filtering. Audio may be unclear.</div>"
+            # Use raw_phonemes for validation - model already outputs accurate IPA phonemes
+            if not raw_phonemes:
+                error_html = "<div style='color: orange; padding: 10px;'>No phonemes recognized. Audio may be unclear.</div>"
                 # Still return trimmed audio even if no phonemes recognized
                 trimmed_audio_data = None
                 if trimmed_audio_path and Path(trimmed_audio_path).exists():
@@ -348,22 +384,29 @@ def process_pronunciation(
                         vocab,
                         config.SAMPLE_RATE
                     )
-                    # Update segment labels to IPA for consistency
-                    ipa_phonemes = recognized_phonemes
+                    # Update segment labels to IPA - use raw_phonemes for accurate IPA labels
+                    # Note: segment count may differ from raw_phonemes count due to forced alignment
                     for i, segment in enumerate(recognized_segments):
-                        if i < len(ipa_phonemes):
-                            segment.label = ipa_phonemes[i]
+                        if i < len(raw_phonemes):
+                            segment.label = raw_phonemes[i]
                 except Exception as e:
                     print(f"Warning: Forced alignment failed: {e}")
             
             # Stage 6: Needleman-Wunsch Alignment
+            # Use raw_phonemes directly - model already outputs accurate IPA phonemes
             aligned_pairs, alignment_score = needleman_wunsch_align(
                 expected_phonemes,
-                recognized_phonemes,
+                raw_phonemes,
                 match_score=config.NW_MATCH_SCORE,
                 mismatch_score=config.NW_MISMATCH_SCORE,
                 gap_penalty=config.NW_GAP_PENALTY
             )
+            
+            # #region agent log
+            aligned_pairs_with_dash = [(exp, rec) for exp, rec in aligned_pairs if exp == '-' or rec == '-']
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"I","location":"app.py:405","message":"aligned_pairs after needleman_wunsch_align","data":{"aligned_pairs_count":len(aligned_pairs),"aligned_pairs_preview":aligned_pairs[:10],"has_dash_in_pairs":any(exp == '-' or rec == '-' for exp, rec in aligned_pairs),"pairs_with_dash":aligned_pairs_with_dash},"timestamp":int(__import__('time').time()*1000)})+'\n')
+            # #endregion
             
             print(f"Aligned pairs: {len(aligned_pairs)}, score: {alignment_score:.2f}")
             
@@ -412,21 +455,38 @@ def process_pronunciation(
                                     result['is_correct'] = True  # Override if validation says correct
             
             # Stage 10: Visualization
-            # Output 1: Recognized text (what the person actually said)
-            if recognized_text:
-                expected_html = f"<div style='font-family: monospace; font-size: 14px;'><p>{recognized_text}</p></div>"
-            else:
-                expected_html = "<div style='font-family: monospace; font-size: 14px;'><p>No recognized text available</p></div>"
+            # Output 1: Expected phonemes (show expected phonemes directly, without spaces between characters)
+            expected_phonemes_str = ' '.join(expected_phonemes)
+            expected_html = f"<div style='font-family: monospace; font-size: 14px;'><p>{expected_phonemes_str}</p></div>"
             
             # Output 2: Recognized phonemes
-            recognized_html = create_simple_phoneme_comparison([], recognized_phonemes)
+            # Use raw_phonemes directly - model already outputs accurate IPA phonemes without filtering
+            
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"C","location":"app.py:456","message":"raw_phonemes before create_simple_phoneme_comparison","data":{"raw_phonemes":raw_phonemes,"count":len(raw_phonemes),"joined":" ".join(raw_phonemes)},"timestamp":int(__import__('time').time()*1000)})+'\n')
+            # #endregion
+            
+            recognized_html = create_simple_phoneme_comparison([], raw_phonemes)
+            
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"app.py:461","message":"recognized_html after create_simple_phoneme_comparison","data":{"html_length":len(recognized_html),"html_preview":recognized_html[:200]},"timestamp":int(__import__('time').time()*1000)})+'\n')
+            # #endregion
             
             # Output 3: Side-by-side comparison
             side_by_side_html = create_side_by_side_comparison(
                 expected_phonemes,
-                recognized_phonemes,
+                raw_phonemes,
                 aligned_pairs
             )
+            
+            # #region agent log
+            import re
+            side_by_side_dashes = [m.start() for m in re.finditer(r'[^<>\'"]-', side_by_side_html)]
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"L","location":"app.py:487","message":"side_by_side_html after create_side_by_side_comparison","data":{"html_length":len(side_by_side_html),"html_preview":side_by_side_html[:300],"dash_count":side_by_side_html.count('-'),"dashes_in_text":side_by_side_dashes[:20]},"timestamp":int(__import__('time').time()*1000)})+'\n')
+            # #endregion
             
             # Output 4: Colored text
             # Convert aligned_pairs to dict format for visualization
@@ -443,25 +503,37 @@ def process_pronunciation(
                         'is_extra': exp is None and rec is not None
                     })
             
-            colored_text_html = create_colored_text(text, aligned_pairs_dict)
+            # Use recognized text for colored text if original text was empty
+            text_for_colored = recognized_text if text_is_empty else text
+            colored_text_html = create_colored_text(text_for_colored, aligned_pairs_dict)
             
             # Output 5: Detailed report (with WER and PER)
+            # Don't show WER if text was empty (WER not calculated)
+            show_wer_in_report = config.SHOW_WER and not text_is_empty and wer_result is not None
+            text_for_report = recognized_text if text_is_empty else text
             detailed_report_html = create_detailed_report(
                 aligned_pairs_dict,
                 diagnostic_results,
-                text,
-                wer_result=wer_result if config.SHOW_WER else None,
+                text_for_report,
+                wer_result=wer_result if show_wer_in_report else None,
                 per_result=per_result if config.SHOW_PER else None,
                 recognized_text=recognized_text
             )
             
             # Output 6: Technical information
             wer_info = ""
-            if wer_result and config.SHOW_WER:
+            # Only show WER if text was provided (not empty) and WER was calculated
+            if not text_is_empty and wer_result and config.SHOW_WER:
                 wer_info = f"""
                     <li><strong>WER (Word Error Rate):</strong> {wer_result['wer']:.2%}</li>
                     <li><strong>WER Details:</strong> {wer_result['substitutions']} substitutions, {wer_result['deletions']} deletions, {wer_result['insertions']} insertions</li>
                     <li><strong>Recognized text:</strong> {recognized_text or 'N/A'}</li>
+                """
+            elif text_is_empty and recognized_text:
+                wer_info = f"""
+                    <li><strong>Text source:</strong> Extracted from audio (no manual text input)</li>
+                    <li><strong>Recognized text:</strong> {recognized_text}</li>
+                    <li><strong>WER:</strong> Not calculated (no reference text provided)</li>
                 """
             
             per_info = ""
@@ -504,6 +576,14 @@ def process_pronunciation(
                     trimmed_audio_data = (trimmed_sr, trimmed_audio)
                 except Exception as e:
                     print(f"Warning: Failed to load trimmed audio for output: {e}")
+            
+            # #region agent log
+            import re
+            recognized_dashes_in_text = [m.start() for m in re.finditer(r'[^<>\'"]-', recognized_html)]
+            side_by_side_dashes_in_text = [m.start() for m in re.finditer(r'[^<>\'"]-', side_by_side_html)]
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"H","location":"app.py:575","message":"before return from process_pronunciation","data":{"recognized_html_full":recognized_html,"recognized_html_has_dash":'-' in recognized_html,"recognized_html_dash_count":recognized_html.count('-'),"recognized_dashes_in_text":recognized_dashes_in_text,"side_by_side_html_preview":side_by_side_html[:400],"side_by_side_dashes_in_text":side_by_side_dashes_in_text},"timestamp":int(__import__('time').time()*1000)})+'\n')
+            # #endregion
             
             return (
                 expected_html,

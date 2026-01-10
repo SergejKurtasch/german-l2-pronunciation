@@ -21,28 +21,46 @@ def create_side_by_side_comparison(
     Returns:
         HTML string with side-by-side comparison
     """
-    html = "<div style='font-family: monospace; font-size: 16px; line-height: 1.8;'>"
+    # #region agent log
+    import json
+    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"J","location":"visualization.py:8","message":"create_side_by_side_comparison entry","data":{"expected_phonemes_count":len(expected_phonemes),"recognized_phonemes_count":len(recognized_phonemes),"aligned_pairs_count":len(aligned_pairs),"aligned_pairs_preview":aligned_pairs[:10],"none_in_recognized":sum(1 for exp, rec in aligned_pairs if rec is None)},"timestamp":int(__import__('time').time()*1000)})+'\n')
+    # #endregion
     
-    # Expected row
-    html += "<div style='margin-bottom: 10px;'>"
-    for i, (expected, recognized) in enumerate(aligned_pairs):
-        if expected is None:
-            continue
-        color = 'green' if expected == recognized else 'red'
-        html += f"<span style='color: {color}; padding: 2px 4px;'>{expected}</span> "
-    html += "</div>"
+    html = "<div style='font-family: monospace; font-size: 16px; line-height: 1.8;' data-block-id='side-by-side-comparison'>"
     
-    # Recognized row
+    # Note: Expected phonemes are shown in the separate "Expected Phonemes" block
+    # Here we only show recognized phonemes with color coding based on alignment
+    
+    # Recognized row - show ALL recognized phonemes from the original list, without dashes
+    # Create a set of matched recognized phonemes from alignment for color coding
+    matched_recognized = set()
+    for expected, recognized in aligned_pairs:
+        if recognized is not None and expected == recognized:
+            matched_recognized.add(recognized)
+    
     html += "<div>"
-    for i, (expected, recognized) in enumerate(aligned_pairs):
-        if recognized is None:
-            html += "<span style='color: gray; padding: 2px 4px;'>-</span> "
-        else:
-            color = 'green' if expected == recognized else 'red'
-            html += f"<span style='color: {color}; padding: 2px 4px;'>{recognized}</span> "
+    recognized_row_content = []
+    # Show all recognized phonemes from the original list
+    for ph in recognized_phonemes:
+        # Check if this phoneme was matched in alignment
+        is_matched = ph in matched_recognized
+        color = 'green' if is_matched else 'red'
+        html += f"<span style='color: {color}; padding: 2px 4px;'>{ph}</span> "
+        recognized_row_content.append(ph)
+    
     html += "</div>"
     
     html += "</div>"
+    
+    # #region agent log
+    recognized_row_str = ' '.join(recognized_row_content)
+    import re
+    dash_positions = [m.start() for m in re.finditer(r'-', html)]
+    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"K","location":"visualization.py:46","message":"create_side_by_side_comparison before return","data":{"html_full":html,"recognized_row_str":recognized_row_str,"html_has_dash":'-' in html,"dash_count":html.count('-'),"dash_positions":dash_positions[:30],"recognized_row_dash_count":recognized_row_str.count('-')},"timestamp":int(__import__('time').time()*1000)})+'\n')
+    # #endregion
+    
     return html
 
 
@@ -413,15 +431,32 @@ def create_simple_phoneme_comparison(
     Returns:
         HTML string with simple comparison
     """
+    # #region agent log
+    import json
+    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"visualization.py:416","message":"create_simple_phoneme_comparison entry","data":{"expected_phonemes":expected_phonemes,"recognized_phonemes":recognized_phonemes,"expected_count":len(expected_phonemes),"recognized_count":len(recognized_phonemes)},"timestamp":int(__import__('time').time()*1000)})+'\n')
+    # #endregion
+    
     expected_str = ' '.join(expected_phonemes)
     recognized_str = ' '.join(recognized_phonemes)
     
-    html = "<div style='font-family: monospace; font-size: 14px;'>"
-    if expected_str:
-        html += f"<p>{expected_str}</p>"
+    # #region agent log
+    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"visualization.py:420","message":"after join operations","data":{"expected_str":expected_str,"recognized_str":recognized_str,"recognized_has_dash":'-' in recognized_str},"timestamp":int(__import__('time').time()*1000)})+'\n')
+    # #endregion
+    
+    html = "<div style='font-family: monospace; font-size: 14px;' data-block-id='recognized-phonemes'>"
+    # Only show recognized phonemes, not expected (expected are shown in separate block)
     if recognized_str:
         html += f"<p>{recognized_str}</p>"
     html += "</div>"
+    
+    # #region agent log
+    import re
+    dash_positions = [m.start() for m in re.finditer(r'-', html)]
+    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"G","location":"visualization.py:430","message":"before return html","data":{"html_full":html,"html_has_dash":'-' in html,"dash_count":html.count('-'),"dash_positions":dash_positions[:20],"recognized_str_in_html":recognized_str in html},"timestamp":int(__import__('time').time()*1000)})+'\n')
+    # #endregion
     
     return html
 
