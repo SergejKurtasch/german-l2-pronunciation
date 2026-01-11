@@ -135,7 +135,7 @@ class PhonemeRecognizer:
             # Get vocabulary (token to ID mapping) from vocab.json
             # If vocab was already loaded directly (from vocab.json), use it
             # Otherwise, try to get it from tokenizer
-            if not hasattr(self, 'vocab') or len(self.vocab) == 0:
+            if not hasattr(self, 'vocab') or self.vocab is None or len(self.vocab) == 0:
                 self.vocab = {}
             
             # Method 1: Try get_vocab() method (most reliable)
@@ -144,16 +144,23 @@ class PhonemeRecognizer:
                 
                 # Try get_vocab() first
                 if hasattr(tokenizer, 'get_vocab'):
-                    self.vocab = tokenizer.get_vocab()
-                    print("Loaded vocabulary using tokenizer.get_vocab()")
+                    try:
+                        self.vocab = tokenizer.get_vocab()
+                        print("Loaded vocabulary using tokenizer.get_vocab()")
+                    except Exception as e:
+                        # Fall through to next method
+                        pass
                 
                 # Method 2: Try direct vocab attribute
-                elif hasattr(tokenizer, 'vocab'):
-                    self.vocab = tokenizer.vocab
-                    print("Loaded vocabulary using tokenizer.vocab")
+                if (self.vocab is None or len(self.vocab) == 0) and hasattr(tokenizer, 'vocab'):
+                    try:
+                        self.vocab = tokenizer.vocab
+                        print("Loaded vocabulary using tokenizer.vocab")
+                    except Exception as e:
+                        pass
                 
                 # Method 3: Build vocab from convert_ids_to_tokens (for character-level tokenizers)
-                elif hasattr(tokenizer, 'convert_ids_to_tokens'):
+                if (self.vocab is None or len(self.vocab) == 0) and hasattr(tokenizer, 'convert_ids_to_tokens'):
                     vocab_size = getattr(tokenizer, 'vocab_size', None)
                     if vocab_size is None:
                         # Try to infer vocab size from model config
@@ -163,6 +170,8 @@ class PhonemeRecognizer:
                             vocab_size = 1000  # Fallback
                     
                     print(f"Building vocabulary from tokenizer (vocab_size={vocab_size})")
+                    if self.vocab is None:
+                        self.vocab = {}
                     for i in range(vocab_size):
                         try:
                             token = tokenizer.convert_ids_to_tokens(i)
@@ -179,7 +188,7 @@ class PhonemeRecognizer:
                     print("Built vocabulary from tokenizer.convert_ids_to_tokens()")
                 
                 # Method 4: Try loading vocab.json directly from cache
-                if len(self.vocab) == 0:
+                if self.vocab is None or len(self.vocab) == 0:
                     try:
                         from transformers import AutoTokenizer
                         import os
@@ -199,7 +208,7 @@ class PhonemeRecognizer:
                         pass
             
             # Verify vocab was loaded (either from tokenizer or directly from vocab.json)
-            if len(self.vocab) == 0:
+            if self.vocab is None or len(self.vocab) == 0:
                 raise RuntimeError(
                     f"Failed to load vocabulary from model '{self.model_name}'. "
                     f"The vocab.json file may be missing or the tokenizer is not properly configured."

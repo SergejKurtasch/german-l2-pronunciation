@@ -1,0 +1,198 @@
+"""
+Phoneme normalization module using phoneme_normalization_table.json.
+Applies Unicode normalization and removes diacritics/symbols not in model vocabulary.
+"""
+
+import json
+from pathlib import Path
+from typing import List, Set, Dict, Optional
+import unicodedata
+
+
+class PhonemeNormalizer:
+    """Normalizes phonemes according to phoneme_normalization_table.json strategy."""
+    
+    def __init__(self, table_path: Optional[Path] = None):
+        """
+        Initialize phoneme normalizer.
+        
+        Args:
+            table_path: Path to phoneme_normalization_table.json. If None, uses default.
+        """
+        if table_path is None:
+            # Default path: project root / phoneme_normalization_table.json
+            project_root = Path(__file__).parent.parent
+            table_path = project_root / "phoneme_normalization_table.json"
+        
+        self.table_path = Path(table_path)
+        self.normalization_table: Dict = {}
+        self.phoneme_mapping: Dict[str, str] = {}
+        self.diacritics_to_remove: Set[str] = set()
+        self.suprasegmentals_to_remove: Set[str] = set()
+        self.affricates_expansion: Dict[str, str] = {}
+        self.chars_to_remove: Set[str] = set()
+        
+        self._load_table()
+    
+    def _load_table(self):
+        """Load normalization table from JSON file."""
+        try:
+            if not self.table_path.exists():
+                print(f"Warning: Normalization table not found at {self.table_path}")
+                print("Phoneme normalization will be skipped.")
+                return
+            
+            with open(self.table_path, 'r', encoding='utf-8') as f:
+                self.normalization_table = json.load(f)
+            
+            # Extract phoneme mapping (only g -> ɡ)
+            self.phoneme_mapping = self.normalization_table.get('phoneme_mapping', {})
+            
+            # Extract diacritics to remove (decision == 'remove')
+            diacritics = self.normalization_table.get('diacritics', {})
+            for char, info in diacritics.items():
+                if info.get('decision') == 'remove':
+                    self.diacritics_to_remove.add(char)
+            
+            # Extract suprasegmentals to remove (decision == 'remove')
+            suprasegmentals = self.normalization_table.get('suprasegmentals', {})
+            for char, info in suprasegmentals.items():
+                if info.get('decision') == 'remove':
+                    self.suprasegmentals_to_remove.add(char)
+            
+            # Extract affricates expansion rules
+            self.affricates_expansion = self.normalization_table.get('affricates_expansion', {})
+            
+            # Extract characters to remove from dictionaries
+            chars_to_remove_list = self.normalization_table.get('chars_to_remove_from_dicts', [])
+            self.chars_to_remove = {item.get('char', '') for item in chars_to_remove_list if item.get('char')}
+            
+            print(f"Loaded phoneme normalization table from {self.table_path}")
+            print(f"  - Phoneme mappings: {len(self.phoneme_mapping)}")
+            print(f"  - Diacritics to remove: {len(self.diacritics_to_remove)}")
+            print(f"  - Suprasegmentals to remove: {len(self.suprasegmentals_to_remove)}")
+            print(f"  - Affricates expansion rules: {len(self.affricates_expansion)}")
+            print(f"  - Characters to remove: {len(self.chars_to_remove)}")
+            
+        except Exception as e:
+            print(f"Error loading normalization table: {e}")
+            print("Phoneme normalization will be skipped.")
+    
+    def normalize_phoneme_string(self, phoneme_string: str, source: str = 'dictionary') -> str:
+        """
+        Normalize a phoneme string according to the normalization table.
+        
+        This function applies:
+        1. Unicode normalization (NFC)
+        2. Phoneme mapping (g -> ɡ)
+        3. Affricate expansion (t͡s -> t s)
+        4. Remove diacritics not in model
+        5. Remove suprasegmentals not in model
+        6. Remove characters not in model vocabulary
+        
+        Args:
+            phoneme_string: Phoneme string to normalize
+            source: Source of phonemes ('dictionary' or 'model'). 
+                    Only 'dictionary' sources are normalized (model phonemes are kept as-is).
+        
+        Returns:
+            Normalized phoneme string
+        """
+        # Strategy: Only normalize dictionary sources, not model sources
+        if source != 'dictionary':
+            # For model sources, only apply Unicode NFC normalization (no character removal)
+            return unicodedata.normalize('NFC', phoneme_string)
+        
+        if not self.normalization_table:
+            # If table not loaded, return as-is
+            return phoneme_string
+        
+        # Step 1: Unicode normalization (NFC)
+        normalized = unicodedata.normalize('NFC', phoneme_string)
+        
+        # Step 2: Apply phoneme mapping (g -> ɡ)
+        for from_char, to_char in self.phoneme_mapping.items():
+            normalized = normalized.replace(from_char, to_char)
+        
+        # Step 3: Expand affricates (t͡s -> t s, etc.)
+        for affricate, expansion in self.affricates_expansion.items():
+            normalized = normalized.replace(affricate, expansion)
+        
+        # Step 4: Remove diacritics not in model
+        for diacritic in self.diacritics_to_remove:
+            normalized = normalized.replace(diacritic, '')
+        
+        # Step 5: Remove suprasegmentals not in model
+        for suprasegmental in self.suprasegmentals_to_remove:
+            normalized = normalized.replace(suprasegmental, '')
+        
+        # Step 6: Remove characters not in model vocabulary
+        for char_to_remove in self.chars_to_remove:
+            normalized = normalized.replace(char_to_remove, '')
+        
+        # Clean up: remove extra spaces and normalize whitespace
+        normalized = ' '.join(normalized.split())
+        
+        return normalized
+    
+    def normalize_phoneme_list(self, phonemes: List[str], source: str = 'dictionary') -> List[str]:
+        """
+        Normalize a list of phonemes.
+        
+        Args:
+            phonemes: List of phoneme strings
+            source: Source of phonemes ('dictionary' or 'model')
+        
+        Returns:
+            List of normalized phoneme strings
+        """
+        normalized_list = []
+        for phoneme in phonemes:
+            normalized = self.normalize_phoneme_string(phoneme, source=source)
+            # Split if expansion created multiple phonemes (e.g., "t s" from "t͡s")
+            if ' ' in normalized:
+                normalized_list.extend(normalized.split())
+            elif normalized:  # Only add non-empty phonemes
+                normalized_list.append(normalized)
+        
+        return normalized_list
+    
+    def normalize_phoneme_char(self, char: str, source: str = 'dictionary') -> str:
+        """
+        Normalize a single phoneme character.
+        
+        Args:
+            char: Single character to normalize
+            source: Source of phoneme ('dictionary' or 'model')
+        
+        Returns:
+            Normalized character
+        """
+        return self.normalize_phoneme_string(char, source=source)
+
+
+# Global instance
+_phoneme_normalizer = None
+
+
+def get_phoneme_normalizer(table_path: Optional[Path] = None) -> PhonemeNormalizer:
+    """Get or create global phoneme normalizer instance."""
+    global _phoneme_normalizer
+    if _phoneme_normalizer is None:
+        _phoneme_normalizer = PhonemeNormalizer(table_path=table_path)
+    return _phoneme_normalizer
+
+
+def normalize_phonemes(phonemes: List[str], source: str = 'dictionary') -> List[str]:
+    """
+    Convenience function to normalize phonemes.
+    
+    Args:
+        phonemes: List of phoneme strings
+        source: Source of phonemes ('dictionary' or 'model')
+    
+    Returns:
+        List of normalized phoneme strings
+    """
+    normalizer = get_phoneme_normalizer()
+    return normalizer.normalize_phoneme_list(phonemes, source=source)

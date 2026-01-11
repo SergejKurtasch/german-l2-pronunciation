@@ -20,7 +20,8 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 # Import modules
 import config
-from modules.vad_module import get_vad_detector
+# VAD import commented out - VAD trimming is disabled
+# from modules.vad_module import get_vad_detector
 from modules.audio_normalizer import get_audio_normalizer
 from modules.g2p_module import get_expected_phonemes, get_g2p_converter
 from modules.phoneme_recognition import get_phoneme_recognizer
@@ -40,7 +41,7 @@ from modules.speech_to_text import get_speech_recognizer
 from modules.metrics import calculate_wer, calculate_per
 
 # Global instances
-vad_detector = None
+# vad_detector = None  # VAD disabled
 audio_normalizer = None
 phoneme_recognizer = None
 phoneme_filter = None
@@ -50,9 +51,41 @@ optional_validator = None
 asr_recognizer = None
 
 
+def initialize_asr_only():
+    """Initialize only ASR (Whisper) for fast startup."""
+    global asr_recognizer
+    
+    if asr_recognizer is None and config.ASR_ENABLED:
+        try:
+            asr_recognizer = get_speech_recognizer(
+                model_size=config.ASR_MODEL,
+                device=config.ASR_DEVICE
+            )
+            if asr_recognizer:
+                print(f"ASR recognizer (Whisper {config.ASR_MODEL}) initialized")
+            else:
+                print("Warning: ASR recognizer not available (whisper not installed)")
+        except Exception as e:
+            print(f"Warning: ASR recognizer initialization failed: {e}")
+            asr_recognizer = None
+
+
+def load_dictionaries_in_background():
+    """Load G2P dictionaries in background after ASR is loaded."""
+    from modules.g2p_module import load_g2p_dictionaries
+    
+    print("Starting background dictionary loading...")
+    try:
+        load_g2p_dictionaries()
+        print("All dictionaries loaded successfully in background!")
+    except Exception as e:
+        print(f"Warning: Dictionary loading failed: {e}")
+
+
 def initialize_components():
     """Initialize global components."""
-    global vad_detector, audio_normalizer, phoneme_recognizer, phoneme_filter, forced_aligner, diagnostic_engine, optional_validator, asr_recognizer
+    # global vad_detector, audio_normalizer, phoneme_recognizer, phoneme_filter, forced_aligner, diagnostic_engine, optional_validator, asr_recognizer
+    global audio_normalizer, phoneme_recognizer, phoneme_filter, forced_aligner, diagnostic_engine, optional_validator, asr_recognizer
     
     if audio_normalizer is None:
         try:
@@ -62,13 +95,14 @@ def initialize_components():
             print(f"Warning: Audio normalizer initialization failed: {e}")
             audio_normalizer = None
     
-    if vad_detector is None:
-        try:
-            vad_detector = get_vad_detector(method=config.VAD_METHOD)
-            print("VAD detector initialized")
-        except Exception as e:
-            print(f"Warning: VAD initialization failed: {e}")
-            vad_detector = None
+    # VAD initialization commented out - VAD trimming is disabled
+    # if vad_detector is None:
+    #     try:
+    #         vad_detector = get_vad_detector(method=config.VAD_METHOD)
+    #         print("VAD detector initialized")
+    #     except Exception as e:
+    #         print(f"Warning: VAD initialization failed: {e}")
+    #         vad_detector = None
     
     if phoneme_recognizer is None:
         try:
@@ -100,19 +134,10 @@ def initialize_components():
         optional_validator = get_optional_validator()
         print("Optional validator initialized")
     
+    # ASR is loaded separately in initialize_asr_only()
+    # Initialize ASR here only if not already loaded
     if asr_recognizer is None and config.ASR_ENABLED:
-        try:
-            asr_recognizer = get_speech_recognizer(
-                model_size=config.ASR_MODEL,
-                device=config.ASR_DEVICE
-            )
-            if asr_recognizer:
-                print(f"ASR recognizer (Whisper {config.ASR_MODEL}) initialized")
-            else:
-                print("Warning: ASR recognizer not available (whisper not installed)")
-        except Exception as e:
-            print(f"Warning: ASR recognizer initialization failed: {e}")
-            asr_recognizer = None
+        initialize_asr_only()
 
 
 def process_pronunciation(
@@ -144,7 +169,7 @@ def process_pronunciation(
     
     if audio_file is None:
         error_html = "<div style='color: orange; padding: 10px;'>Please record or upload audio.</div>"
-        return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
+        return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
     
     try:
         # Initialize components
@@ -155,7 +180,7 @@ def process_pronunciation(
             sample_rate, audio_array = audio_file
         else:
             error_html = "<div style='color: red; padding: 10px;'>Invalid audio format.</div>"
-            return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
+            return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
         
         # Save audio to temporary file
         with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_file:
@@ -183,28 +208,31 @@ def process_pronunciation(
                     print(f"Warning: Audio normalization failed: {e}")
                     normalized_audio_path = tmp_path
             
-            # Stage 1: VAD - Trim noise (use normalized audio if available)
-            vad_info = {}
-            trimmed_audio_path = normalized_audio_path
-            if vad_detector is not None:
-                try:
-                    with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as trimmed_file:
-                        trimmed_path = trimmed_file.name
-                    # Use ultra-conservative padding
-                    trimmed_audio_path = vad_detector.trim_audio(
-                        normalized_audio_path,  # Use normalized audio for VAD
-                        trimmed_path,
-                        sample_rate,
-                        padding_ms=config.VAD_PADDING_MS  # Will use VAD_PADDING_END_MS for end internally
-                    )
-                    vad_info = {'enabled': True, 'trimmed_path': trimmed_audio_path}
-                    print(f"VAD: Audio trimmed")
-                except Exception as e:
-                    print(f"Warning: VAD failed: {e}")
-                    trimmed_audio_path = tmp_path
-                    vad_info = {'enabled': False, 'error': str(e)}
-            else:
-                vad_info = {'enabled': False, 'reason': 'VAD not available'}
+            # Stage 1: VAD - Trim noise (DISABLED - commented out)
+            # VAD trimming is disabled - using normalized audio (or original) directly
+            vad_info = {'enabled': False, 'reason': 'VAD disabled'}
+            trimmed_audio_path = normalized_audio_path  # Use normalized audio directly without VAD trimming
+            # vad_info = {}
+            # trimmed_audio_path = normalized_audio_path
+            # if vad_detector is not None:
+            #     try:
+            #         with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as trimmed_file:
+            #             trimmed_path = trimmed_file.name
+            #         # Use ultra-conservative padding
+            #         trimmed_audio_path = vad_detector.trim_audio(
+            #             normalized_audio_path,  # Use normalized audio for VAD
+            #             trimmed_path,
+            #             sample_rate,
+            #             padding_ms=config.VAD_PADDING_MS  # Will use VAD_PADDING_END_MS for end internally
+            #         )
+            #         vad_info = {'enabled': True, 'trimmed_path': trimmed_audio_path}
+            #         print(f"VAD: Audio trimmed")
+            #     except Exception as e:
+            #         print(f"Warning: VAD failed: {e}")
+            #         trimmed_audio_path = tmp_path
+            #         vad_info = {'enabled': False, 'error': str(e)}
+            # else:
+            #     vad_info = {'enabled': False, 'reason': 'VAD not available'}
             
             # Stage 2: ASR - Speech-to-Text recognition
             recognized_text = None
@@ -222,14 +250,14 @@ def process_pronunciation(
                         
                         if not recognized_text or not recognized_text.strip():
                             error_html = "<div style='color: orange; padding: 10px;'>Could not recognize text from audio. Please try again or enter text manually.</div>"
-                            return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
+                            return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
                     except Exception as e:
                         print(f"Error: ASR failed: {e}")
                         error_html = f"<div style='color: red; padding: 10px;'>Failed to recognize text from audio: {str(e)}</div>"
-                        return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
+                        return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
                 else:
                     error_html = "<div style='color: orange; padding: 10px;'>ASR is not available. Please enter text manually or enable ASR in configuration.</div>"
-                    return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
+                    return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
             elif asr_recognizer and config.ASR_ENABLED:
                 # Text is provided, ASR is optional (for comparison)
                 try:
@@ -309,7 +337,7 @@ def process_pronunciation(
             
             if not expected_phonemes:
                 error_html = "<div style='color: red; padding: 10px;'>Failed to extract expected phonemes from text.</div>"
-                return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
+                return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
             
             # Stage 3: Phoneme Recognition (Wav2Vec2 XLSR-53 eSpeak)
             logits, emissions = phoneme_recognizer.recognize_phonemes(
@@ -360,7 +388,7 @@ def process_pronunciation(
                         pass
                 # Create raw phonemes display even if filtered is empty
                 raw_phonemes_html = create_raw_phonemes_display(raw_phonemes)
-                return (error_html, error_html, error_html, error_html, error_html, error_html, raw_phonemes_html, trimmed_audio_data)
+                return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, raw_phonemes_html, trimmed_audio_data)
             
             # Stage 5: Forced Alignment (for recognized phonemes)
             # Load waveform for forced alignment
@@ -455,7 +483,14 @@ def process_pronunciation(
                                     result['is_correct'] = True  # Override if validation says correct
             
             # Stage 10: Visualization
-            # Output 1: Expected phonemes (show expected phonemes directly, without spaces between characters)
+            # Output 0: Text with source information (for debugging)
+            from modules.visualization import create_text_with_sources_display
+            text_with_sources_html = create_text_with_sources_display(
+                text_for_phonemes,
+                expected_phonemes_dict
+            )
+            
+            # Output 1: Expected phonemes (show expected phonemes directly, with spaces between phonemes)
             expected_phonemes_str = ' '.join(expected_phonemes)
             expected_html = f"<div style='font-family: monospace; font-size: 14px;'><p>{expected_phonemes_str}</p></div>"
             
@@ -547,7 +582,7 @@ def process_pronunciation(
             <div style='padding: 10px; background: #f9f9f9; border-radius: 5px;'>
                 <h4>Technical Information</h4>
                 <ul>
-                    <li><strong>VAD:</strong> {'Enabled' if vad_info.get('enabled') else 'Disabled'}</li>
+                    <li><strong>VAD:</strong> Disabled (commented out)</li>
                     <li><strong>ASR:</strong> {'Enabled' if (asr_recognizer and config.ASR_ENABLED) else 'Disabled'}</li>
                     <li><strong>Expected phonemes:</strong> {len(expected_phonemes)}</li>
                     <li><strong>Model:</strong> {config.MODEL_NAME}</li>
@@ -586,6 +621,7 @@ def process_pronunciation(
             # #endregion
             
             return (
+                text_with_sources_html,  # First output: text with sources
                 expected_html,
                 recognized_html,
                 side_by_side_html,
@@ -618,14 +654,21 @@ def process_pronunciation(
             </details>
         </div>
         """
-        return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
+        return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
 
 
 def load_models_in_background():
-    """Load all models in background thread."""
+    """Load models in background: first ASR, then dictionaries."""
     print("Starting background model loading...")
     try:
-        initialize_components()
+        # Stage 1: Load ASR (Whisper) first - this is critical for user experience
+        print("Stage 1: Loading ASR (Whisper)...")
+        initialize_asr_only()
+        print("ASR loaded successfully!")
+        
+        # Stage 2: Load dictionaries after ASR is ready
+        print("Stage 2: Loading G2P dictionaries...")
+        load_dictionaries_in_background()
         print("All models loaded successfully in background!")
     except Exception as e:
         print(f"Warning: Some components failed to initialize in background: {e}")
@@ -667,6 +710,7 @@ def create_interface():
                 process_btn = gr.Button("Validate Pronunciation", variant="primary")
             
             with gr.Column():
+                text_with_sources_output = gr.HTML(label="0. Original Text with Transcription Sources")
                 expected_output = gr.HTML(label="1. Expected Phonemes")
                 recognized_output = gr.HTML(label="2. Recognized Phonemes")
                 comparison_output = gr.HTML(label="3. Side-by-Side Comparison")
@@ -675,7 +719,7 @@ def create_interface():
                 technical_output = gr.HTML(label="6. Technical Information")
                 raw_phonemes_output = gr.HTML(label="7. Raw Phonemes (Before Filtering)")
                 trimmed_audio_output = gr.Audio(
-                    label="8. Trimmed Audio (after VAD)",
+                    label="8. Processed Audio (VAD disabled)",
                     type="numpy",
                     visible=True
                 )
@@ -697,6 +741,7 @@ def create_interface():
             fn=process_pronunciation,
             inputs=[text_input, audio_input, validation_checkbox],
             outputs=[
+                text_with_sources_output,
                 expected_output,
                 recognized_output,
                 comparison_output,

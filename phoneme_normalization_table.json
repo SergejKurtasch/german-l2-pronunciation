@@ -1,0 +1,598 @@
+{
+  "version": "1.0",
+  "description": "Phoneme Normalization & Comparison Strategy for DSL/MFA/G2P → HF phoneme model",
+  "strategy": {
+    "principle": "Unicode normalization, not phonological normalization",
+    "key_priority": "Dictionaries should not contain symbols that model cannot produce",
+    "phoneme_preservation": "Do not merge different phonemes, even if articulatorily similar"
+  },
+  "phoneme_mapping": {
+    "g": "ɡ"
+  },
+  "diacritics": {
+    "̃": {
+      "unicode": "U+0303",
+      "name": "COMBINING TILDE",
+      "in_model": true,
+      "in_dsl": true,
+      "in_mfa": false,
+      "decision": "keep",
+      "reason": "Present in model and dictionaries"
+    },
+    "̆": {
+      "unicode": "U+0306",
+      "name": "COMBINING BREVE",
+      "in_model": false,
+      "in_dsl": true,
+      "in_mfa": false,
+      "decision": "remove",
+      "reason": "Not in model - will be removed from dictionaries"
+    },
+    "̊": {
+      "unicode": "U+030A",
+      "name": "COMBINING RING ABOVE",
+      "in_model": true,
+      "in_dsl": false,
+      "in_mfa": false,
+      "decision": "keep",
+      "reason": "Present in model (may be used in recognition)"
+    },
+    "̍": {
+      "unicode": "U+030D",
+      "name": "COMBINING VERTICAL LINE ABOVE",
+      "in_model": false,
+      "in_dsl": true,
+      "in_mfa": false,
+      "decision": "remove",
+      "reason": "Not in model - will be removed from dictionaries"
+    },
+    "̝": {
+      "unicode": "U+031D",
+      "name": "COMBINING UP TACK BELOW",
+      "in_model": true,
+      "in_dsl": false,
+      "in_mfa": false,
+      "decision": "keep",
+      "reason": "Present in model (may be used in recognition)"
+    },
+    "̞": {
+      "unicode": "U+031E",
+      "name": "COMBINING DOWN TACK BELOW",
+      "in_model": true,
+      "in_dsl": false,
+      "in_mfa": false,
+      "decision": "keep",
+      "reason": "Present in model (may be used in recognition)"
+    },
+    "̥": {
+      "unicode": "U+0325",
+      "name": "COMBINING RING BELOW",
+      "in_model": false,
+      "in_dsl": true,
+      "in_mfa": false,
+      "decision": "remove",
+      "reason": "Not in model - will be removed from dictionaries"
+    },
+    "̩": {
+      "unicode": "U+0329",
+      "name": "COMBINING VERTICAL LINE BELOW",
+      "in_model": true,
+      "in_dsl": true,
+      "in_mfa": true,
+      "decision": "keep",
+      "reason": "Present in model and dictionaries"
+    },
+    "̪": {
+      "unicode": "U+032A",
+      "name": "COMBINING BRIDGE BELOW",
+      "in_model": true,
+      "in_dsl": false,
+      "in_mfa": false,
+      "decision": "keep",
+      "reason": "Present in model (may be used in recognition)"
+    },
+    "̯": {
+      "unicode": "U+032F",
+      "name": "COMBINING INVERTED BREVE BELOW",
+      "in_model": false,
+      "in_dsl": true,
+      "in_mfa": false,
+      "decision": "remove",
+      "reason": "Not in model - will be removed from dictionaries"
+    },
+    "͜": {
+      "unicode": "U+035C",
+      "name": "COMBINING DOUBLE BREVE BELOW",
+      "in_model": false,
+      "in_dsl": true,
+      "in_mfa": false,
+      "decision": "remove",
+      "reason": "Not in model - will be removed from dictionaries"
+    },
+    "͡": {
+      "unicode": "U+0361",
+      "name": "COMBINING DOUBLE INVERTED BREVE",
+      "in_model": false,
+      "in_dsl": true,
+      "in_mfa": false,
+      "decision": "remove",
+      "reason": "Not in model - will be removed from dictionaries"
+    }
+  },
+  "suprasegmentals": {
+    "ˈ": {
+      "unicode": "U+02C8",
+      "name": "MODIFIER LETTER PRIMARY STRESS",
+      "in_model": false,
+      "in_dsl": true,
+      "in_mfa": false,
+      "decision": "remove",
+      "reason": "Not in model - will be removed from dictionaries"
+    },
+    "ˌ": {
+      "unicode": "U+02CC",
+      "name": "MODIFIER LETTER SECONDARY STRESS",
+      "in_model": false,
+      "in_dsl": true,
+      "in_mfa": false,
+      "decision": "remove",
+      "reason": "Not in model - will be removed from dictionaries"
+    },
+    "ː": {
+      "unicode": "U+02D0",
+      "name": "MODIFIER LETTER TRIANGULAR COLON",
+      "in_model": true,
+      "in_dsl": true,
+      "in_mfa": true,
+      "decision": "keep",
+      "reason": "Present in model and dictionaries"
+    },
+    "̯": {
+      "unicode": "U+032F",
+      "name": "COMBINING INVERTED BREVE BELOW",
+      "in_model": false,
+      "in_dsl": true,
+      "in_mfa": false,
+      "decision": "remove",
+      "reason": "Not in model - will be removed from dictionaries"
+    },
+    "͜": {
+      "unicode": "U+035C",
+      "name": "COMBINING DOUBLE BREVE BELOW",
+      "in_model": false,
+      "in_dsl": true,
+      "in_mfa": false,
+      "decision": "remove",
+      "reason": "Not in model - will be removed from dictionaries"
+    }
+  },
+  "affricates_expansion": {
+    "t͡s": "t s",
+    "d͡ʒ": "d ʒ",
+    "t͜s": "t s",
+    "d͜ʒ": "d ʒ",
+    "pf": "p f",
+    "ts": "t s"
+  },
+  "phonemes_preserve_distinctions": {
+    "vowels": {
+      "a": "a (U+0061)",
+      "ɑ": "ɑ (U+0251) - open back unrounded",
+      "ɐ": "ɐ (U+0250) - near-open central"
+    },
+    "e_variants": {
+      "e": "e (U+0065)",
+      "ɛ": "ɛ (U+025B) - open-mid front",
+      "ɜ": "ɜ (U+025C) - open-mid central"
+    },
+    "i_variants": {
+      "i": "i (U+0069)",
+      "ɪ": "ɪ (U+026A) - near-close near-front"
+    },
+    "u_variants": {
+      "u": "u (U+0075)",
+      "ʊ": "ʊ (U+028A) - near-close near-back"
+    },
+    "o_variants": {
+      "o": "o (U+006F)",
+      "ɔ": "ɔ (U+0254) - open-mid back"
+    },
+    "r_variants": {
+      "r": "r (U+0072) - alveolar trill",
+      "ɾ": "ɾ (U+027E) - alveolar tap",
+      "ʁ": "ʁ (U+0281) - uvular fricative"
+    }
+  },
+  "chars_to_remove_from_dicts": [
+    {
+      "char": "E",
+      "unicode": "U+0045",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "ɘ",
+      "unicode": "U+0258",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "̆",
+      "unicode": "U+0306",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "̯",
+      "unicode": "U+032F",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "͜",
+      "unicode": "U+035C",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "ʀ",
+      "unicode": "U+0280",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "ˑ",
+      "unicode": "U+02D1",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "ĭ",
+      "unicode": "U+012D",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "…",
+      "unicode": "U+2026",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "O",
+      "unicode": "U+004F",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "ˌ",
+      "unicode": "U+02CC",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "ã",
+      "unicode": "U+00E3",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "'",
+      "unicode": "U+0027",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "~",
+      "unicode": "U+007E",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - placeholder symbol in DSL dictionary, will be removed during normalization"
+    },
+    {
+      "char": "͡",
+      "unicode": "U+0361",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "g",
+      "unicode": "U+0067",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "õ",
+      "unicode": "U+00F5",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "F",
+      "unicode": "U+0046",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "̥",
+      "unicode": "U+0325",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "D",
+      "unicode": "U+0044",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "ʏ",
+      "unicode": "U+028F",
+      "in_dsl": true,
+      "in_mfa": true,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "A",
+      "unicode": "U+0041",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "ˈ",
+      "unicode": "U+02C8",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "R",
+      "unicode": "U+0052",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "C",
+      "unicode": "U+0043",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "ʧ",
+      "unicode": "U+02A7",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "T",
+      "unicode": "U+0054",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "̍",
+      "unicode": "U+030D",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "ɱ",
+      "unicode": "U+0271",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "U",
+      "unicode": "U+0055",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "ˀ",
+      "unicode": "U+02C0",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "Q",
+      "unicode": "U+0051",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Not in model vocabulary - will be removed during normalization"
+    }
+  ],
+  "chars_only_in_model": [
+    "\"",
+    "1",
+    "2",
+    "4",
+    "5",
+    "X",
+    "Z",
+    "^",
+    "q",
+    "ä",
+    "ð",
+    "ħ",
+    "ũ",
+    "ɒ",
+    "ɖ",
+    "ɚ",
+    "ɜ",
+    "ɣ",
+    "ɨ",
+    "ɫ",
+    "ɬ",
+    "ɭ",
+    "ɯ",
+    "ɳ",
+    "ɴ",
+    "ɵ",
+    "ɸ",
+    "ɹ",
+    "ɻ",
+    "ʂ",
+    "ʈ",
+    "ʉ",
+    "ʌ",
+    "ʎ",
+    "ʐ",
+    "ʑ",
+    "ʕ",
+    "ʝ",
+    "ʲ",
+    "ˤ",
+    "̊",
+    "̝",
+    "̞",
+    "̪",
+    "β",
+    "ᵝ"
+  ],
+  "model_inventory": [
+    "\"",
+    ".",
+    "1",
+    "2",
+    "4",
+    "5",
+    ":",
+    "?",
+    "N",
+    "S",
+    "X",
+    "Z",
+    "[",
+    "^",
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f",
+    "h",
+    "i",
+    "j",
+    "k",
+    "l",
+    "m",
+    "n",
+    "o",
+    "p",
+    "q",
+    "r",
+    "s",
+    "t",
+    "u",
+    "v",
+    "w",
+    "x",
+    "y",
+    "z",
+    "ä",
+    "æ",
+    "ç",
+    "ð",
+    "ø",
+    "ħ",
+    "ŋ",
+    "œ",
+    "ũ",
+    "ɐ",
+    "ɑ",
+    "ɒ",
+    "ɔ",
+    "ɕ",
+    "ɖ",
+    "ə",
+    "ɚ",
+    "ɛ",
+    "ɜ",
+    "ɟ",
+    "ɡ",
+    "ɣ",
+    "ɨ",
+    "ɪ",
+    "ɫ",
+    "ɬ",
+    "ɭ",
+    "ɯ",
+    "ɲ",
+    "ɳ",
+    "ɴ",
+    "ɵ",
+    "ɸ",
+    "ɹ",
+    "ɻ",
+    "ɽ",
+    "ɾ",
+    "ʁ",
+    "ʂ",
+    "ʃ",
+    "ʈ",
+    "ʉ",
+    "ʊ",
+    "ʋ",
+    "ʌ",
+    "ʎ",
+    "ʐ",
+    "ʑ",
+    "ʒ",
+    "ʔ",
+    "ʕ",
+    "ʝ",
+    "ʰ",
+    "ʲ",
+    "ː",
+    "ˤ",
+    "̃",
+    "̊",
+    "̝",
+    "̞",
+    "̩",
+    "̪",
+    "β",
+    "θ",
+    "χ",
+    "ᵝ",
+    "ᵻ"
+  ],
+  "statistics": {
+    "phoneme_mappings": 1,
+    "diacritics_keep": 6,
+    "diacritics_remove": 6,
+    "suprasegmentals_keep": 1,
+    "suprasegmentals_remove": 4,
+    "chars_to_remove_count": 31,
+    "chars_only_in_model_count": 46,
+    "model_inventory_size": 106
+  }
+}

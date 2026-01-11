@@ -32,19 +32,45 @@ def create_side_by_side_comparison(
     # Note: Expected phonemes are shown in the separate "Expected Phonemes" block
     # Here we only show recognized phonemes with color coding based on alignment
     
-    # Recognized row - show ALL recognized phonemes from the original list, without dashes
-    # Create a set of matched recognized phonemes from alignment for color coding
-    matched_recognized = set()
+    # Build mapping: track which positions in recognized_phonemes are correctly matched
+    # The key insight: aligned_pairs contains pairs (expected, recognized) in the order
+    # determined by Needleman-Wunsch alignment. When recognized is not None, it corresponds
+    # to a phoneme from the recognized_phonemes list in sequential order (gaps in expected
+    # don't affect the order of recognized phonemes).
+    
+    # Initialize all positions as not matched
+    match_status = [False] * len(recognized_phonemes)
+    
+    # Track current index in recognized_phonemes as we iterate through aligned_pairs
+    # aligned_pairs may contain gaps (None values), so we need to track the index carefully
+    recognized_list_idx = 0
+    
     for expected, recognized in aligned_pairs:
-        if recognized is not None and expected == recognized:
-            matched_recognized.add(recognized)
+        if recognized is not None:
+            # This aligned pair has a recognized phoneme (not a gap in recognized sequence)
+            # Check if we haven't exceeded the recognized_phonemes list
+            if recognized_list_idx < len(recognized_phonemes):
+                # The recognized phoneme from alignment should match the one in the list at current position
+                # (assuming alignment is correct and order is preserved)
+                current_recognized = recognized_phonemes[recognized_list_idx]
+                
+                # Verify that the recognized phoneme in alignment matches the one in the list at this position
+                # This ensures we're comparing the right phoneme at the right position
+                if recognized == current_recognized:
+                    # Check if it also matches the expected phoneme (correct match)
+                    if expected is not None and expected == recognized:
+                        match_status[recognized_list_idx] = True
+                # Move to next position in recognized_phonemes regardless of match
+                # (we've processed this recognized phoneme)
+                recognized_list_idx += 1
+            # If we've exceeded the list, stop processing (shouldn't happen in correct alignment)
     
     html += "<div>"
     recognized_row_content = []
-    # Show all recognized phonemes from the original list
-    for ph in recognized_phonemes:
-        # Check if this phoneme was matched in alignment
-        is_matched = ph in matched_recognized
+    # Show all recognized phonemes from the original list with color coding based on position
+    for i, ph in enumerate(recognized_phonemes):
+        # Check if this position was correctly matched in alignment
+        is_matched = match_status[i] if i < len(match_status) else False
         color = 'green' if is_matched else 'red'
         html += f"<span style='color: {color}; padding: 2px 4px;'>{ph}</span> "
         recognized_row_content.append(ph)
@@ -457,6 +483,83 @@ def create_simple_phoneme_comparison(
     with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
         f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"G","location":"visualization.py:430","message":"before return html","data":{"html_full":html,"html_has_dash":'-' in html,"dash_count":html.count('-'),"dash_positions":dash_positions[:20],"recognized_str_in_html":recognized_str in html},"timestamp":int(__import__('time').time()*1000)})+'\n')
     # #endregion
+    
+    return html
+
+
+def create_text_with_sources_display(
+    text: str,
+    expected_phonemes_dict: List[Dict]
+) -> str:
+    """
+    Create display showing original text with source information for each word.
+    
+    Args:
+        text: Original German text
+        expected_phonemes_dict: List of phoneme dictionaries with 'text_char' and 'source' fields
+        
+    Returns:
+        HTML string with text and source labels
+    """
+    if not text or not expected_phonemes_dict:
+        return "<div style='color: gray; padding: 10px;'>No text or phoneme information available.</div>"
+    
+    # Group phonemes by word (using text_char field)
+    word_sources = {}
+    for ph_info in expected_phonemes_dict:
+        word = ph_info.get('text_char', '')
+        source = ph_info.get('source', 'unknown')
+        if word:
+            # Normalize word for lookup (lowercase, remove punctuation)
+            word_key = word.lower().strip(".,!?;:()\"")
+            # Get the first source for this word (all phonemes of a word should have same source)
+            if word_key not in word_sources:
+                word_sources[word_key] = source
+    
+    # Map source names to display names and colors
+    source_display = {
+        'dsl': ('DSL', '#3498db'),      # Blue
+        'mfa': ('MFA', '#27ae60'),      # Green
+        'espeak': ('eSpeak', '#e67e22'), # Orange
+        'unknown': ('Unknown', '#95a5a6') # Gray
+    }
+    
+    # Split text into words (preserving punctuation and spaces)
+    import re
+    words = re.findall(r"[\w']+|[^\w\s]", text)
+    
+    html = "<div style='padding: 15px; background: #f8f9fa; border-radius: 5px; border-left: 4px solid #007bff; margin-bottom: 15px;'>"
+    html += "<h5 style='color: #2c3e50; margin-top: 0; margin-bottom: 15px;'>Original Text with Transcription Sources</h5>"
+    
+    html += "<div style='font-size: 18px; line-height: 2.0; margin-bottom: 10px;'>"
+    
+    for word in words:
+        # Skip punctuation-only tokens
+        if not word[0].isalnum():
+            html += f"<span>{word}</span>"
+            continue
+        
+        # Get source for this word (normalize for lookup)
+        word_key = word.lower().strip(".,!?;:()\"")
+        source = word_sources.get(word_key, 'unknown')
+        display_name, color = source_display.get(source, ('Unknown', '#95a5a6'))
+        
+        # Create word with source badge
+        html += f"<span style='position: relative; display: inline-block; margin-right: 8px;'>"
+        html += f"<span style='font-weight: bold;'>{word}</span>"
+        html += f"<span style='font-size: 10px; color: {color}; background: {color}20; padding: 2px 6px; border-radius: 3px; margin-left: 4px; vertical-align: super;'>{display_name}</span>"
+        html += f"</span>"
+    
+    html += "</div>"
+    
+    # Add legend
+    html += "<div style='margin-top: 15px; padding: 10px; background: #fff; border-radius: 4px; font-size: 12px;'>"
+    html += "<strong>Legend:</strong> "
+    for source_key, (display_name, color) in source_display.items():
+        html += f"<span style='color: {color}; background: {color}20; padding: 2px 6px; border-radius: 3px; margin-left: 5px;'>{display_name}</span>"
+    html += "</div>"
+    
+    html += "</div>"
     
     return html
 

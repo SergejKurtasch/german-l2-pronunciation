@@ -65,6 +65,15 @@ elif locals().get('PRESET_LENIENT', False):
 # Forced Alignment settings
 FORCED_ALIGNMENT_BLANK_ID = 0
 
+# Dictionary (Lexicon) settings
+DICTIONARY_DIR = PROJECT_ROOT / "data" / "dictionaries"
+# Primary: IPA-Dict-DSL (better for loanwords)
+IPA_DSL_LEXICON_PATH = DICTIONARY_DIR / "de_ipa.dsl"
+IPA_DSL_LEXICON_URL = "https://raw.githubusercontent.com/open-dsl-dict/ipa-dict-dsl/master/data/de_ipa.dsl"
+# Fallback: MFA Dictionary
+MFA_GERMAN_LEXICON_PATH = DICTIONARY_DIR / "german_mfa.dict"
+MFA_GERMAN_LEXICON_URL = "https://github.com/MontrealCorpusTools/mfa-models/releases/tag/dictionary-german_mfa-v3.0.0"
+
 # Needleman-Wunsch alignment parameters
 NW_MATCH_SCORE = 1.0
 NW_MISMATCH_SCORE = -1.0
