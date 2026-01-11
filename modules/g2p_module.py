@@ -6,6 +6,9 @@ import os
 import urllib.request
 import zipfile
 import io
+import pickle
+import threading
+import time
 from pathlib import Path
 from typing import List, Dict, Optional, Set
 import config
@@ -67,6 +70,49 @@ class DSLG2P:
         else:
             print(f"Warning: DSL file not found at {self.dsl_path}")
 
+    def _get_cache_path(self) -> Path:
+        """Get path to pickle cache file."""
+        return self.dsl_path.with_suffix('.dsl.pickle')
+
+    def _load_from_cache(self) -> bool:
+        """Load lexicon from pickle cache if available and up-to-date."""
+        cache_path = self._get_cache_path()
+        
+        if not cache_path.exists():
+            return False
+        
+        # Check if cache is newer than DSL file
+        try:
+            cache_mtime = cache_path.stat().st_mtime
+            dsl_mtime = self.dsl_path.stat().st_mtime
+            if cache_mtime < dsl_mtime:
+                # DSL file is newer, cache is outdated
+                return False
+        except OSError:
+            return False
+        
+        # Load from cache
+        try:
+            start_time = time.time()
+            with open(cache_path, 'rb') as f:
+                self.lexicon = pickle.load(f)
+            load_time = time.time() - start_time
+            count = len(self.lexicon)
+            print(f"Loaded {count} words from DSL lexicon cache in {load_time:.2f} seconds.")
+            return True
+        except Exception as e:
+            print(f"Warning: Failed to load from cache: {e}")
+            return False
+
+    def _save_cache(self):
+        """Save lexicon to pickle cache for fast loading."""
+        cache_path = self._get_cache_path()
+        try:
+            with open(cache_path, 'wb') as f:
+                pickle.dump(self.lexicon, f, protocol=pickle.HIGHEST_PROTOCOL)
+        except Exception as e:
+            print(f"Warning: Failed to save cache: {e}")
+
     def _download_dsl(self, url: str):
         """Download DSL file from URL."""
         print(f"Downloading DSL lexicon from {url}...")
@@ -94,6 +140,13 @@ class DSLG2P:
             List of normalized phoneme strings
         """
         import re
+        import unicodedata
+        
+        # #region agent log
+        import json, time
+        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
+            debug_f.write(json.dumps({"location":"g2p_module.py:_normalize_ipa_transcription","message":"Input transcription","data":{"transcription":transcription,"has_t_h":'tʰ' in transcription or 't ʰ' in transcription},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"A"})+'\n')
+        # #endregion
         
         # Remove leading/trailing slashes and whitespace
         cleaned = transcription.strip().strip('/').strip()
@@ -110,7 +163,12 @@ class DSLG2P:
         # Remove word boundaries and other special marks
         cleaned = cleaned.replace('|', '').replace('‖', '')
         
-        # Split into phonemes (handle multi-character phonemes)
+        # #region agent log
+        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
+            debug_f.write(json.dumps({"location":"g2p_module.py:_normalize_ipa_transcription","message":"After cleaning","data":{"cleaned":cleaned,"has_t_h":'tʰ' in cleaned or 't ʰ' in cleaned},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"A"})+'\n')
+        # #endregion
+        
+        # Split into phonemes (handle multi-character phonemes and combining characters)
         # This is similar to the parsing logic in _parse_phonemes_from_string
         phonemes = []
         i = 0
@@ -134,19 +192,43 @@ class DSLG2P:
             # 2-character phonemes
             if not matched and i + 2 <= len(cleaned):
                 two_char = cleaned[i:i+2]
-                # Check for long vowels, diphthongs, affricates
+                # Check for long vowels, diphthongs, affricates, aspirated consonants
                 if two_char in ['aː', 'eː', 'iː', 'oː', 'uː', 'yː', 'øː', 'ɛː',
-                               'aɪ', 'aʊ', 'ɔʏ', 'pf', 'ts', 'tʃ', 'dʒ', 'd͡ʒ', 't͜s', 'd͜ʒ']:
+                               'aɪ', 'aʊ', 'ɔʏ', 'pf', 'ts', 'tʃ', 'dʒ', 'd͡ʒ', 't͜s', 'd͜ʒ',
+                               'tʰ', 'pʰ', 'kʰ']:
                     phonemes.append(two_char)
                     i += 2
                     matched = True
             
-            # Single character phoneme
-            if not matched:
+            # Check for combining characters (modifier letters like ʰ, ʲ, etc.)
+            # These should attach to the previous base character
+            if not matched and i < len(cleaned):
                 char = cleaned[i]
-                if not char.isspace() and char not in ['/', '(', ')', '[', ']']:
+                # Check if current character is a combining character or modifier letter
+                # Combining characters: U+0300-U+036F (combining diacritics)
+                # Modifier letters: U+02B0-U+02FF (like ʰ U+02B0, ʲ U+02B7)
+                char_cat = unicodedata.category(char)
+                is_combining = char_cat == 'Mn'  # Mark, nonspacing (combining diacritics)
+                is_modifier = '\u02B0' <= char <= '\u02FF'  # Modifier letters
+                
+                if (is_combining or is_modifier) and phonemes:
+                    # Attach to previous phoneme
+                    phonemes[-1] = phonemes[-1] + char
+                    i += 1
+                    matched = True
+                elif not char.isspace() and char not in ['/', '(', ')', '[', ']']:
+                    # Single character phoneme (base character)
                     phonemes.append(char)
-                i += 1
+                    i += 1
+                    matched = True
+                
+                if not matched:
+                    i += 1
+        
+        # #region agent log
+        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
+            debug_f.write(json.dumps({"location":"g2p_module.py:_normalize_ipa_transcription","message":"Phonemes before normalization","data":{"phonemes":phonemes,"has_t_h":any('tʰ' in ph or 't ʰ' in ph for ph in phonemes)},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"A"})+'\n')
+        # #endregion
         
         # Apply phoneme normalization from phoneme_normalization_table.json
         if HAS_PHONEME_NORMALIZER and get_phoneme_normalizer:
@@ -154,6 +236,10 @@ class DSLG2P:
                 normalizer = get_phoneme_normalizer()
                 # Normalize each phoneme (source='dictionary' for DSL)
                 normalized_phonemes = normalizer.normalize_phoneme_list(phonemes, source='dictionary')
+                # #region agent log
+                with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
+                    debug_f.write(json.dumps({"location":"g2p_module.py:_normalize_ipa_transcription","message":"Phonemes after normalization","data":{"normalized_phonemes":normalized_phonemes,"has_t_h":any('tʰ' in ph or 't ʰ' in ph for ph in normalized_phonemes)},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"B"})+'\n')
+                # #endregion
                 return normalized_phonemes
             except Exception as e:
                 print(f"Warning: Failed to normalize phonemes: {e}")
@@ -162,11 +248,17 @@ class DSLG2P:
         return phonemes
 
     def _load_dsl(self):
-        """Load DSL lexicon into memory."""
+        """Load DSL lexicon into memory, using cache if available."""
         import re
-        import json, time
+        import json
         
+        # Try to load from cache first
+        if self._load_from_cache():
+            return
+        
+        # Cache miss or outdated - load from DSL file
         print(f"Loading DSL lexicon from {self.dsl_path}...")
+        start_time = time.time()
         count = 0
         try:
             with open(self.dsl_path, 'r', encoding='utf-8') as f:
@@ -205,12 +297,16 @@ class DSLG2P:
                                 # If normalization resulted in empty/invalid phonemes, skip this word
                                 # (it will use MFA or eSpeak instead)
             
+            load_time = time.time() - start_time
             with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
                 debug_f.write(json.dumps({"location":"g2p_module.py:dsl_load","message":"DSL lexicon loaded","data":{"count":count,"sample_words":list(self.lexicon.keys())[:5]},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"C"})+'\n')
             
-            print(f"Loaded {count} words from DSL lexicon.")
+            print(f"Loaded {count} words from DSL lexicon in {load_time:.2f} seconds.")
+            
+            # Save to cache for next time
+            self._save_cache()
         except Exception as e:
-            import json, time
+            import json
             with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
                 debug_f.write(json.dumps({"location":"g2p_module.py:dsl_load_error","message":"DSL lexicon load error","data":{"error":str(e)},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"C"})+'\n')
             print(f"Error loading DSL lexicon: {e}")
@@ -382,21 +478,55 @@ class G2PConverter:
             self._initialize_backend()
     
     def _load_dictionaries(self):
-        """Load dictionaries (DSL and MFA)."""
+        """Load dictionaries (DSL and MFA) in parallel."""
         if self._dicts_loaded:
             return
         
-        # Initialize Primary: IPA-Dict-DSL (better for loanwords)
-        self.dsl_lexicon = DSLG2P(
-            dsl_path=config.IPA_DSL_LEXICON_PATH,
-            download_url=config.IPA_DSL_LEXICON_URL
-        )
+        # Load dictionaries in parallel threads
+        dsl_lexicon = [None]
+        mfa_lexicon = [None]
+        dsl_error = [None]
+        mfa_error = [None]
         
-        # Initialize Fallback: MFA Dictionary
-        self.mfa_lexicon = LexiconG2P(
-            lexicon_path=config.MFA_GERMAN_LEXICON_PATH,
-            download_url=config.MFA_GERMAN_LEXICON_URL
-        )
+        def load_dsl():
+            try:
+                dsl_lexicon[0] = DSLG2P(
+                    dsl_path=config.IPA_DSL_LEXICON_PATH,
+                    download_url=config.IPA_DSL_LEXICON_URL
+                )
+            except Exception as e:
+                dsl_error[0] = e
+        
+        def load_mfa():
+            try:
+                mfa_lexicon[0] = LexiconG2P(
+                    lexicon_path=config.MFA_GERMAN_LEXICON_PATH,
+                    download_url=config.MFA_GERMAN_LEXICON_URL
+                )
+            except Exception as e:
+                mfa_error[0] = e
+        
+        # Start both threads
+        dsl_thread = threading.Thread(target=load_dsl, daemon=False)
+        mfa_thread = threading.Thread(target=load_mfa, daemon=False)
+        
+        dsl_thread.start()
+        mfa_thread.start()
+        
+        # Wait for both to complete
+        dsl_thread.join()
+        mfa_thread.join()
+        
+        # Assign results
+        if dsl_error[0]:
+            print(f"Warning: Failed to load DSL lexicon: {dsl_error[0]}")
+        else:
+            self.dsl_lexicon = dsl_lexicon[0]
+        
+        if mfa_error[0]:
+            print(f"Warning: Failed to load MFA lexicon: {mfa_error[0]}")
+        else:
+            self.mfa_lexicon = mfa_lexicon[0]
         
         self._dicts_loaded = True
     
@@ -467,6 +597,8 @@ class G2PConverter:
             'aː', 'eː', 'iː', 'oː', 'uː', 'yː', 'øː', 'ɛː',
             # Affricates
             'pf', 'ts', 'tʃ', 'dʒ',
+            # Aspirated consonants (with modifier letter ʰ)
+            'tʰ', 'pʰ', 'kʰ',
         ]
         
         # German vowels that can be long (for length mark attachment)
@@ -514,8 +646,23 @@ class G2PConverter:
                     i += 1
                     continue
                 
+                # Check if next character is a modifier letter (like ʰ, ʲ) or combining character
+                # These should attach to the current base character
+                import unicodedata
+                if i + 1 < len(no_spaces):
+                    next_char = no_spaces[i + 1]
+                    next_char_cat = unicodedata.category(next_char)
+                    is_combining = next_char_cat == 'Mn'  # Mark, nonspacing
+                    is_modifier = '\u02B0' <= next_char <= '\u02FF'  # Modifier letters
+                    
+                    if is_combining or is_modifier:
+                        # Attach modifier/combining character to base character
+                        phonemes.append(char + next_char)
+                        i += 2
+                        matched = True
+                
                 # Check if next character is length mark (ː) - attach it to vowel
-                if i + 1 < len(no_spaces) and no_spaces[i + 1] == 'ː':
+                if not matched and i + 1 < len(no_spaces) and no_spaces[i + 1] == 'ː':
                     # Check if current char is a vowel
                     if char in vowels:
                         phonemes.append(char + 'ː')
@@ -524,7 +671,7 @@ class G2PConverter:
                         # Not a vowel - add separately (length mark shouldn't attach to consonants)
                         phonemes.append(char)
                         i += 1
-                else:
+                elif not matched:
                     phonemes.append(char)
                     i += 1
         

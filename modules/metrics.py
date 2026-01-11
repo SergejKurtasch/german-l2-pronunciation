@@ -8,9 +8,19 @@ from typing import List, Dict, Tuple, Optional
 try:
     import jiwer
     HAS_JIWER = True
+    # #region agent log
+    import json, time
+    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"metrics.py:jiwer_import","message":"jiwer imported successfully","data":{"has_jiwer":True,"jiwer_dir":dir(jiwer) if jiwer else None},"timestamp":int(time.time()*1000)})+'\n')
+    # #endregion
 except ImportError:
     HAS_JIWER = False
     jiwer = None
+    # #region agent log
+    import json, time
+    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"metrics.py:jiwer_import","message":"jiwer import failed","data":{"has_jiwer":False},"timestamp":int(time.time()*1000)})+'\n')
+    # #endregion
 
 
 def calculate_wer(reference: str, hypothesis: str) -> Dict[str, any]:
@@ -66,21 +76,65 @@ def calculate_wer(reference: str, hypothesis: str) -> Dict[str, any]:
     # Use jiwer if available
     if HAS_JIWER:
         try:
-            measures = jiwer.compute_measures(reference, hypothesis)
-            return {
-                'wer': measures['wer'],
-                'substitutions': measures['substitutions'],
-                'deletions': measures['deletions'],
-                'insertions': measures['insertions'],
-                'hits': measures['hits'],
-                'total_reference_words': len(reference.split())
-            }
+            # #region agent log
+            import json, time
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"B","location":"metrics.py:calculate_wer_jiwer","message":"attempting jiwer calculation","data":{"reference":reference,"hypothesis":hypothesis,"has_process_words":hasattr(jiwer,'process_words'),"has_compute_measures":hasattr(jiwer,'compute_measures')},"timestamp":int(time.time()*1000)})+'\n')
+            # #endregion
+            
+            # Try new API (jiwer 3.0+): process_words
+            if hasattr(jiwer, 'process_words'):
+                output = jiwer.process_words(reference, hypothesis)
+                # #region agent log
+                with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                    f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"B","location":"metrics.py:calculate_wer_jiwer_success","message":"jiwer.process_words succeeded","data":{"wer":output.wer,"hits":output.hits,"substitutions":output.substitutions,"deletions":output.deletions,"insertions":output.insertions},"timestamp":int(time.time()*1000)})+'\n')
+                # #endregion
+                return {
+                    'wer': output.wer,
+                    'substitutions': output.substitutions,
+                    'deletions': output.deletions,
+                    'insertions': output.insertions,
+                    'hits': output.hits,
+                    'total_reference_words': len(reference.split())
+                }
+            # Fallback to old API (jiwer < 3.0): compute_measures
+            elif hasattr(jiwer, 'compute_measures'):
+                measures = jiwer.compute_measures(reference, hypothesis)
+                # #region agent log
+                with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                    f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"B","location":"metrics.py:calculate_wer_jiwer_success","message":"jiwer.compute_measures succeeded","data":{"measures":measures},"timestamp":int(time.time()*1000)})+'\n')
+                # #endregion
+                return {
+                    'wer': measures['wer'],
+                    'substitutions': measures['substitutions'],
+                    'deletions': measures['deletions'],
+                    'insertions': measures['insertions'],
+                    'hits': measures['hits'],
+                    'total_reference_words': len(reference.split())
+                }
+            else:
+                raise AttributeError("jiwer has neither process_words nor compute_measures")
         except Exception as e:
             print(f"Warning: jiwer calculation failed: {e}, using fallback")
+            # #region agent log
+            import json, time
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"B","location":"metrics.py:calculate_wer_jiwer_error","message":"jiwer calculation failed","data":{"error":str(e),"error_type":type(e).__name__},"timestamp":int(time.time()*1000)})+'\n')
+            # #endregion
             # Fall through to manual implementation
     
     # Fallback: manual implementation using edit distance
-    return _calculate_wer_manual(reference, hypothesis)
+    # #region agent log
+    import json, time
+    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"C","location":"metrics.py:calculate_wer_fallback","message":"using manual WER calculation","data":{"reference":reference,"hypothesis":hypothesis},"timestamp":int(time.time()*1000)})+'\n')
+    # #endregion
+    result = _calculate_wer_manual(reference, hypothesis)
+    # #region agent log
+    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"C","location":"metrics.py:calculate_wer_fallback_result","message":"manual WER calculation result","data":{"result":result},"timestamp":int(time.time()*1000)})+'\n')
+    # #endregion
+    return result
 
 
 def _calculate_wer_manual(reference: str, hypothesis: str) -> Dict[str, any]:

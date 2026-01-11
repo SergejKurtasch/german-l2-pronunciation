@@ -161,6 +161,18 @@ def create_text_comparison_view(
     Returns:
         HTML string with text comparison
     """
+    # #region agent log
+    import json, time
+    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"visualization.py:create_text_comparison_view_entry","message":"create_text_comparison_view called","data":{"expected_text":expected_text,"recognized_text":recognized_text,"wer_result":wer_result,"expected_is_none":expected_text is None,"recognized_is_none":recognized_text is None},"timestamp":int(time.time()*1000)})+'\n')
+    # #endregion
+    
+    # Handle None values
+    if expected_text is None:
+        expected_text = ""
+    if recognized_text is None:
+        recognized_text = ""
+    
     html = "<div style='padding: 15px; background: #fff3cd; border-radius: 5px; border-left: 4px solid #ffc107;'>"
     html += "<h4 style='color: #856404; margin-top: 0;'>Text Comparison (High Word Error Rate)</h4>"
     
@@ -189,6 +201,13 @@ def create_text_comparison_view(
     html += "</div>"
     
     html += "</div>"
+    
+    # #region agent log
+    import json, time
+    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"visualization.py:create_text_comparison_view_exit","message":"create_text_comparison_view completed","data":{"html_length":len(html)},"timestamp":int(time.time()*1000)})+'\n')
+    # #endregion
+    
     return html
 
 

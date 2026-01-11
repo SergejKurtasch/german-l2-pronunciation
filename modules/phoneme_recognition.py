@@ -495,8 +495,19 @@ class PhonemeRecognizer:
                     if token not in special_tokens:
                         tokens.append(token)
             
+            # #region agent log
+            import json, time
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
+                debug_f.write(json.dumps({"location":"phoneme_recognition.py:decode_phonemes","message":"Tokens before join","data":{"tokens":tokens,"has_t_h":any('tʰ' in t or 't' in t and 'ʰ' in tokens for t in tokens)},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"C"})+'\n')
+            # #endregion
+            
             # Join tokens with space to preserve IPA symbols
             transcription = ' '.join(tokens)
+            
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
+                debug_f.write(json.dumps({"location":"phoneme_recognition.py:decode_phonemes","message":"Transcription after join","data":{"transcription":transcription,"has_t_h":'tʰ' in transcription or 't ʰ' in transcription},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"C"})+'\n')
+            # #endregion
         
         return transcription
 

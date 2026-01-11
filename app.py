@@ -82,6 +82,38 @@ def load_dictionaries_in_background():
         print(f"Warning: Dictionary loading failed: {e}")
 
 
+def collapse_consecutive_duplicates(phonemes: List[str]) -> List[str]:
+    """
+    Collapse consecutive duplicate phonemes (same logic as CTC collapse).
+    This ensures that expected and recognized phonemes are processed consistently.
+    
+    Args:
+        phonemes: List of phoneme strings
+        
+    Returns:
+        List of phonemes with consecutive duplicates collapsed
+    """
+    if not phonemes:
+        return phonemes
+    
+    collapsed = []
+    prev_phoneme = None
+    
+    for phoneme in phonemes:
+        # Skip empty phonemes
+        if not phoneme or not phoneme.strip():
+            continue
+        
+        # If different from previous, add it
+        if phoneme != prev_phoneme:
+            collapsed.append(phoneme)
+            prev_phoneme = phoneme
+        # If same as previous, skip it (CTC collapse)
+        # prev_phoneme stays the same to allow same token later
+    
+    return collapsed
+
+
 def initialize_components():
     """Initialize global components."""
     # global vad_detector, audio_normalizer, phoneme_recognizer, phoneme_filter, forced_aligner, diagnostic_engine, optional_validator, asr_recognizer
@@ -188,25 +220,26 @@ def process_pronunciation(
             sf.write(tmp_path, audio_array, sample_rate)
         
         try:
-            # Stage 0: Audio normalization (for AGC issues)
-            normalized_audio_path = tmp_path
-            if audio_normalizer is not None and config.ENABLE_AUDIO_NORMALIZATION:
-                try:
-                    with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as normalized_file:
-                        normalized_path = normalized_file.name
-                    normalized_audio_path = audio_normalizer.process_audio_file(
-                        tmp_path,
-                        normalized_path,
-                        sample_rate,
-                        compress_peaks=config.NORMALIZE_COMPRESS_PEAKS,
-                        peak_compression_ratio=config.NORMALIZE_PEAK_COMPRESSION_RATIO,
-                        peak_compression_duration_ms=config.NORMALIZE_PEAK_COMPRESSION_DURATION_MS,
-                        normalize_method=config.NORMALIZE_METHOD
-                    )
-                    print(f"Audio normalization: Compressed peaks and normalized")
-                except Exception as e:
-                    print(f"Warning: Audio normalization failed: {e}")
-                    normalized_audio_path = tmp_path
+            # Stage 0: Audio normalization (for AGC issues) - COMMENTED OUT
+            # normalized_audio_path = tmp_path
+            # if audio_normalizer is not None and config.ENABLE_AUDIO_NORMALIZATION:
+            #     try:
+            #         with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as normalized_file:
+            #             normalized_path = normalized_file.name
+            #         normalized_audio_path = audio_normalizer.process_audio_file(
+            #             tmp_path,
+            #             normalized_path,
+            #             sample_rate,
+            #             compress_peaks=config.NORMALIZE_COMPRESS_PEAKS,
+            #             peak_compression_ratio=config.NORMALIZE_PEAK_COMPRESSION_RATIO,
+            #             peak_compression_duration_ms=config.NORMALIZE_PEAK_COMPRESSION_DURATION_MS,
+            #             normalize_method=config.NORMALIZE_METHOD
+            #         )
+            #         print(f"Audio normalization: Compressed peaks and normalized")
+            #     except Exception as e:
+            #         print(f"Warning: Audio normalization failed: {e}")
+            #         normalized_audio_path = tmp_path
+            normalized_audio_path = tmp_path  # Use original audio without normalization
             
             # Stage 1: VAD - Trim noise (DISABLED - commented out)
             # VAD trimming is disabled - using normalized audio (or original) directly
@@ -269,9 +302,27 @@ def process_pronunciation(
                     
                     # Stage 3: WER Calculation (only if text was provided)
                     if recognized_text:
-                        wer_result = calculate_wer(text, recognized_text)
-                        print(f"WER: {wer_result['wer']:.2%} (Substitutions: {wer_result['substitutions']}, "
-                              f"Deletions: {wer_result['deletions']}, Insertions: {wer_result['insertions']})")
+                        # #region agent log
+                        import json, time
+                        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                            f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"app.py:before_calculate_wer","message":"before calculate_wer call","data":{"text":text,"recognized_text":recognized_text,"text_is_none":text is None,"recognized_is_none":recognized_text is None},"timestamp":int(time.time()*1000)})+'\n')
+                        # #endregion
+                        try:
+                            wer_result = calculate_wer(text, recognized_text)
+                            # #region agent log
+                            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                                f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"app.py:after_calculate_wer","message":"after calculate_wer call","data":{"wer_result":wer_result},"timestamp":int(time.time()*1000)})+'\n')
+                            # #endregion
+                            print(f"WER: {wer_result['wer']:.2%} (Substitutions: {wer_result['substitutions']}, "
+                                  f"Deletions: {wer_result['deletions']}, Insertions: {wer_result['insertions']})")
+                        except Exception as e:
+                            # #region agent log
+                            import traceback
+                            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                                f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"app.py:calculate_wer_error","message":"calculate_wer raised exception","data":{"error":str(e),"error_type":type(e).__name__,"traceback":traceback.format_exc()},"timestamp":int(time.time()*1000)})+'\n')
+                            # #endregion
+                            print(f"Error: WER calculation failed: {e}")
+                            wer_result = None
                 except Exception as e:
                     print(f"Warning: ASR failed: {e}")
                     recognized_text = None
@@ -280,6 +331,11 @@ def process_pronunciation(
             # Stage 4: Check WER threshold - skip phoneme analysis if WER is too high
             # Skip this check if text was empty (WER not calculated)
             if not text_is_empty and wer_result and wer_result['wer'] > config.WER_THRESHOLD and config.WER_SKIP_PHONEME_ANALYSIS:
+                # #region agent log
+                import json, time
+                with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                    f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"app.py:high_wer_check","message":"high WER detected, skipping phoneme analysis","data":{"wer":wer_result['wer'],"threshold":config.WER_THRESHOLD,"text":text,"recognized_text":recognized_text},"timestamp":int(time.time()*1000)})+'\n')
+                # #endregion
                 # High WER - show only text comparison
                 from modules.visualization import create_text_comparison_view
                 
@@ -295,7 +351,24 @@ def process_pronunciation(
                         print(f"Warning: Failed to load trimmed audio for output: {e}")
                 
                 # Create simplified view
-                comparison_html = create_text_comparison_view(text, recognized_text or "", wer_result)
+                try:
+                    # #region agent log
+                    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"app.py:before_create_text_comparison_view","message":"before create_text_comparison_view call","data":{"text":text,"recognized_text":recognized_text,"wer_result":wer_result},"timestamp":int(time.time()*1000)})+'\n')
+                    # #endregion
+                    comparison_html = create_text_comparison_view(text, recognized_text or "", wer_result)
+                    # #region agent log
+                    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"app.py:after_create_text_comparison_view","message":"after create_text_comparison_view call","data":{"comparison_html_length":len(comparison_html)},"timestamp":int(time.time()*1000)})+'\n')
+                    # #endregion
+                except Exception as e:
+                    # #region agent log
+                    import traceback
+                    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"app.py:create_text_comparison_view_error","message":"create_text_comparison_view raised exception","data":{"error":str(e),"error_type":type(e).__name__,"traceback":traceback.format_exc()},"timestamp":int(time.time()*1000)})+'\n')
+                    # #endregion
+                    print(f"Error: Failed to create text comparison view: {e}")
+                    comparison_html = f"<div style='color: red; padding: 10px;'>Error creating text comparison: {str(e)}</div>"
                 empty_html = "<div style='color: gray; padding: 10px;'>Phoneme analysis skipped due to high WER.</div>"
                 
                 technical_html = f"""
@@ -317,7 +390,29 @@ def process_pronunciation(
                 # Create empty raw phonemes display for high WER case
                 raw_phonemes_html = "<div style='color: gray; padding: 10px;'>Raw phonemes not available (phoneme analysis skipped due to high WER).</div>"
                 
+                # Create text with sources display even for high WER case
+                from modules.visualization import create_text_with_sources_display
+                # For high WER, we still want to show the expected text with sources
+                # Use recognized text for phonemes if available, otherwise use expected text
+                text_for_sources = recognized_text if recognized_text else text
+                # Get expected phonemes for display (even though we skip detailed analysis)
+                # Import get_expected_phonemes here to avoid any scope issues
+                from modules.g2p_module import get_expected_phonemes as get_expected_phonemes_func
+                try:
+                    expected_phonemes_dict_for_sources = get_expected_phonemes_func(text_for_sources)
+                    text_with_sources_html = create_text_with_sources_display(
+                        text_for_sources,
+                        expected_phonemes_dict_for_sources
+                    )
+                except Exception as e:
+                    # Fallback if get_expected_phonemes fails
+                    print(f"Warning: Failed to get expected phonemes for text with sources: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    text_with_sources_html = f"<div style='padding: 15px; background: #f8f9fa; border-radius: 5px;'><p>Original Text: {text_for_sources}</p></div>"
+                
                 return (
+                    text_with_sources_html,  # First output: text with sources
                     empty_html,
                     empty_html,
                     comparison_html,
@@ -333,6 +428,8 @@ def process_pronunciation(
             text_for_phonemes = recognized_text if recognized_text else text
             expected_phonemes_dict = get_expected_phonemes(text_for_phonemes)
             expected_phonemes = [ph.get('phoneme', '') for ph in expected_phonemes_dict]
+            # Apply CTC collapse logic to expected phonemes (same as model does)
+            expected_phonemes = collapse_consecutive_duplicates(expected_phonemes)
             print(f"Expected phonemes (from {'recognized' if recognized_text else 'expected'} text): {len(expected_phonemes)}")
             
             if not expected_phonemes:
@@ -356,10 +453,12 @@ def process_pronunciation(
             # #endregion
             
             raw_phonemes = decoded_phonemes_str.split()
+            # Apply CTC collapse logic to recognized phonemes (for consistency, though model already does this)
+            raw_phonemes = collapse_consecutive_duplicates(raw_phonemes)
             
             # #region agent log
             with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
-                f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"B","location":"app.py:323","message":"raw_phonemes after split","data":{"raw_phonemes":raw_phonemes,"count":len(raw_phonemes),"has_dash":any('-' in ph for ph in raw_phonemes)},"timestamp":int(__import__('time').time()*1000)})+'\n')
+                f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"B","location":"app.py:323","message":"raw_phonemes after split and collapse","data":{"raw_phonemes":raw_phonemes,"count":len(raw_phonemes),"has_dash":any('-' in ph for ph in raw_phonemes)},"timestamp":int(__import__('time').time()*1000)})+'\n')
             # #endregion
             
             print(f"Raw phonemes: {len(raw_phonemes)}")
@@ -491,7 +590,16 @@ def process_pronunciation(
             )
             
             # Output 1: Expected phonemes (show expected phonemes directly, with spaces between phonemes)
+            # #region agent log
+            import json, time
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
+                debug_f.write(json.dumps({"location":"app.py:expected_phonemes_before_join","message":"Expected phonemes before join","data":{"expected_phonemes":expected_phonemes,"has_t_h":any('tʰ' in ph or ('t' in ph and 'ʰ' in ph) for ph in expected_phonemes)},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"D"})+'\n')
+            # #endregion
             expected_phonemes_str = ' '.join(expected_phonemes)
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
+                debug_f.write(json.dumps({"location":"app.py:expected_phonemes_after_join","message":"Expected phonemes after join","data":{"expected_phonemes_str":expected_phonemes_str,"has_t_h":'tʰ' in expected_phonemes_str or 't ʰ' in expected_phonemes_str},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"D"})+'\n')
+            # #endregion
             expected_html = f"<div style='font-family: monospace; font-size: 14px;'><p>{expected_phonemes_str}</p></div>"
             
             # Output 2: Recognized phonemes

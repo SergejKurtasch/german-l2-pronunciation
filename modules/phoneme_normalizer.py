@@ -85,7 +85,7 @@ class PhonemeNormalizer:
         This function applies:
         1. Unicode normalization (NFC)
         2. Phoneme mapping (g -> ɡ)
-        3. Affricate expansion (t͡s -> t s)
+        3. Remove combining characters from affricates (t͡s -> ts, t͜s -> ts)
         4. Remove diacritics not in model
         5. Remove suprasegmentals not in model
         6. Remove characters not in model vocabulary
@@ -114,9 +114,10 @@ class PhonemeNormalizer:
         for from_char, to_char in self.phoneme_mapping.items():
             normalized = normalized.replace(from_char, to_char)
         
-        # Step 3: Expand affricates (t͡s -> t s, etc.)
-        for affricate, expansion in self.affricates_expansion.items():
-            normalized = normalized.replace(affricate, expansion)
+        # Step 3: Remove combining characters from affricates (t͡s -> ts, t͜s -> ts, etc.)
+        # Keep affricates as single phonemes without spaces
+        # Remove combining double breve (͡ U+0361) and combining double breve below (͜ U+035C)
+        normalized = normalized.replace('͡', '').replace('͜', '')
         
         # Step 4: Remove diacritics not in model
         for diacritic in self.diacritics_to_remove:
@@ -146,14 +147,43 @@ class PhonemeNormalizer:
         Returns:
             List of normalized phoneme strings
         """
+        # #region agent log
+        import json, time
+        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
+            debug_f.write(json.dumps({"location":"phoneme_normalizer.py:normalize_phoneme_list","message":"Input phonemes","data":{"phonemes":phonemes,"has_t_h":any('tʰ' in ph or 't ʰ' in ph for ph in phonemes)},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"B"})+'\n')
+        # #endregion
+        
         normalized_list = []
         for phoneme in phonemes:
             normalized = self.normalize_phoneme_string(phoneme, source=source)
-            # Split if expansion created multiple phonemes (e.g., "t s" from "t͡s")
+            # Don't split affricates - they should remain as single phonemes
+            # Only split if there are actual spaces (shouldn't happen after our changes)
             if ' ' in normalized:
-                normalized_list.extend(normalized.split())
+                # Check if it's an affricate that was incorrectly split
+                # If it matches pattern like "t s" or "d ʒ", join them back
+                parts = normalized.split()
+                if len(parts) == 2:
+                    # Check if it's a known affricate pattern
+                    affricate_patterns = [
+                        ('t', 's'), ('d', 'ʒ'), ('p', 'f')
+                    ]
+                    if (parts[0], parts[1]) in affricate_patterns:
+                        # Join back into single phoneme
+                        normalized = parts[0] + parts[1]
+                        normalized_list.append(normalized)
+                    else:
+                        # Not an affricate, split normally
+                        normalized_list.extend(parts)
+                else:
+                    # Multiple parts, split normally
+                    normalized_list.extend(parts)
             elif normalized:  # Only add non-empty phonemes
                 normalized_list.append(normalized)
+        
+        # #region agent log
+        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
+            debug_f.write(json.dumps({"location":"phoneme_normalizer.py:normalize_phoneme_list","message":"Output normalized phonemes","data":{"normalized_list":normalized_list,"has_t_h":any('tʰ' in ph or 't ʰ' in ph for ph in normalized_list)},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"B"})+'\n')
+        # #endregion
         
         return normalized_list
     
