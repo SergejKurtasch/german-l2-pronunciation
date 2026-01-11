@@ -352,6 +352,50 @@ class LexiconG2P:
             self._load_lexicon()
         else:
             print(f"Warning: Lexicon file not found at {self.lexicon_path}")
+    
+    def _get_cache_path(self) -> Path:
+        """Get path to pickle cache file."""
+        return self.lexicon_path.with_suffix('.dict.pickle')
+    
+    def _load_from_cache(self) -> bool:
+        """Load lexicon from pickle cache if available and up-to-date."""
+        cache_path = self._get_cache_path()
+        
+        if not cache_path.exists():
+            return False
+        
+        # Check if cache is newer than lexicon file
+        try:
+            cache_mtime = cache_path.stat().st_mtime
+            lexicon_mtime = self.lexicon_path.stat().st_mtime
+            if cache_mtime < lexicon_mtime:
+                # Lexicon file is newer, cache is outdated
+                return False
+        except OSError:
+            return False
+        
+        # Load from cache
+        try:
+            start_time = time.time()
+            with open(cache_path, 'rb') as f:
+                self.lexicon = pickle.load(f)
+            load_time = time.time() - start_time
+            count = len(self.lexicon)
+            print(f"Loaded {count} words from lexicon cache in {load_time:.2f} seconds.")
+            return True
+        except Exception as e:
+            print(f"Warning: Failed to load from cache: {e}")
+            return False
+    
+    def _save_cache(self):
+        """Save lexicon to pickle cache for fast loading."""
+        cache_path = self._get_cache_path()
+        try:
+            with open(cache_path, 'wb') as f:
+                pickle.dump(self.lexicon, f, protocol=pickle.HIGHEST_PROTOCOL)
+            print(f"Saved lexicon cache to {cache_path}")
+        except Exception as e:
+            print(f"Warning: Failed to save cache: {e}")
 
     def _download_lexicon(self, url: str):
         """Download and extract lexicon from URL."""
@@ -383,11 +427,18 @@ class LexiconG2P:
             print(f"Error downloading/extracting lexicon: {e}")
 
     def _load_lexicon(self):
-        """Load lexicon into memory, ignoring probability numbers and applying normalization."""
+        """Load lexicon into memory, using cache if available."""
         # #region agent log
         import json, time
         # #endregion
+        
+        # Try to load from cache first
+        if self._load_from_cache():
+            return
+        
+        # Cache miss or outdated - load from lexicon file
         print(f"Loading lexicon from {self.lexicon_path}...")
+        start_time = time.time()
         count = 0
         try:
             with open(self.lexicon_path, 'r', encoding='utf-8') as f:
@@ -421,11 +472,15 @@ class LexiconG2P:
                             else:
                                 self.lexicon[word] = phonemes
                             count += 1
+            load_time = time.time() - start_time
             # #region agent log
             with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
                 debug_f.write(json.dumps({"location":"g2p_module.py:load","message":"Lexicon loaded","data":{"count":count,"sample_words":list(self.lexicon.keys())[:5]},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"C"})+'\n')
             # #endregion
-            print(f"Loaded {count} words from lexicon.")
+            print(f"Loaded {count} words from lexicon in {load_time:.2f} seconds.")
+            
+            # Save to cache for next time
+            self._save_cache()
         except Exception as e:
             # #region agent log
             with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
@@ -482,13 +537,23 @@ class G2PConverter:
         if self._dicts_loaded:
             return
         
+        # #region agent log
+        import json
+        dict_load_start = time.time()
+        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"g2p_module.py:_load_dictionaries:start","message":"Starting dictionary loading","data":{},"timestamp":int(time.time()*1000),"elapsed_ms":0})+'\n')
+        # #endregion
+        
         # Load dictionaries in parallel threads
         dsl_lexicon = [None]
         mfa_lexicon = [None]
         dsl_error = [None]
         mfa_error = [None]
+        dsl_time = [0]
+        mfa_time = [0]
         
         def load_dsl():
+            dsl_start = time.time()
             try:
                 dsl_lexicon[0] = DSLG2P(
                     dsl_path=config.IPA_DSL_LEXICON_PATH,
@@ -496,8 +561,11 @@ class G2PConverter:
                 )
             except Exception as e:
                 dsl_error[0] = e
+            finally:
+                dsl_time[0] = (time.time() - dsl_start) * 1000
         
         def load_mfa():
+            mfa_start = time.time()
             try:
                 mfa_lexicon[0] = LexiconG2P(
                     lexicon_path=config.MFA_GERMAN_LEXICON_PATH,
@@ -505,6 +573,8 @@ class G2PConverter:
                 )
             except Exception as e:
                 mfa_error[0] = e
+            finally:
+                mfa_time[0] = (time.time() - mfa_start) * 1000
         
         # Start both threads
         dsl_thread = threading.Thread(target=load_dsl, daemon=False)
@@ -516,6 +586,12 @@ class G2PConverter:
         # Wait for both to complete
         dsl_thread.join()
         mfa_thread.join()
+        
+        dict_load_elapsed = (time.time() - dict_load_start) * 1000
+        # #region agent log
+        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"g2p_module.py:_load_dictionaries:end","message":"Dictionary loading completed","data":{"dsl_time_ms":dsl_time[0],"mfa_time_ms":mfa_time[0],"total_time_ms":dict_load_elapsed},"timestamp":int(time.time()*1000),"elapsed_ms":int(dict_load_elapsed)})+'\n')
+        # #endregion
         
         # Assign results
         if dsl_error[0]:
@@ -708,6 +784,10 @@ class G2PConverter:
         all_expected_phonemes = []
         current_char_pos = 0
         
+        # #region agent log
+        token_processing_start = time.time()
+        # #endregion
+        
         for token in tokens:
             # Find token position in original text to keep char_pos accurate
             token_pos = text.find(token, current_char_pos)
@@ -844,7 +924,13 @@ class G2PConverter:
                     })
             
             current_char_pos = token_pos + len(token)
-            
+        
+        token_processing_elapsed = (time.time() - token_processing_start) * 1000
+        # #region agent log
+        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"g2p_module.py:get_expected_phonemes:token_processing","message":"Token processing completed","data":{"tokens_count":len(tokens),"phonemes_count":len(all_expected_phonemes)},"timestamp":int(time.time()*1000),"elapsed_ms":int(token_processing_elapsed)})+'\n')
+        # #endregion
+        
         return all_expected_phonemes
     
     def get_phoneme_string(self, text: str) -> str:
@@ -894,9 +980,14 @@ def load_g2p_dictionaries():
         print("G2P dictionaries loaded successfully!")
 
 
+# Cache for G2P results to speed up repeated lookups
+_g2p_cache = {}
+_g2p_cache_max_size = 1000  # Limit cache size
+
 def get_expected_phonemes(text: str) -> List[Dict[str, any]]:
     """
     Convenience function to get expected phonemes.
+    Uses caching to speed up repeated lookups.
     
     Args:
         text: German text string
@@ -904,7 +995,20 @@ def get_expected_phonemes(text: str) -> List[Dict[str, any]]:
     Returns:
         List of phoneme dictionaries
     """
+    # Check cache first
+    if text in _g2p_cache:
+        return _g2p_cache[text]
+    
+    # Get phonemes from converter
     converter = get_g2p_converter()
-    return converter.get_expected_phonemes(text)
+    result = converter.get_expected_phonemes(text)
+    
+    # Cache result (with size limit)
+    if len(_g2p_cache) >= _g2p_cache_max_size:
+        # Remove oldest entry (simple FIFO)
+        _g2p_cache.pop(next(iter(_g2p_cache)))
+    _g2p_cache[text] = result
+    
+    return result
 
 

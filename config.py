@@ -18,9 +18,12 @@ MODEL_DEVICE = "auto"  # "auto", "cpu", "cuda", "mps"
 # ASR (Speech-to-Text) settings
 # Using OpenAI Whisper for transcribing audio to text
 ASR_ENABLED = True  # Enable/disable ASR functionality
-ASR_MODEL = "medium"  # Whisper model size: tiny, base, small, medium, large
-ASR_LANGUAGE = "de"  # Language code for transcription (German)
-ASR_DEVICE = None  # Device for ASR (None = auto-detect, "cpu", "cuda", "mps")
+ASR_ENGINE = "whisper"  # "whisper" or "macos" - macOS Speech may timeout, Whisper is more reliable
+# Note: macOS Speech often times out (3s) and falls back to Whisper anyway, so using Whisper directly is faster
+ASR_MODEL = "medium"  # Whisper model size: tiny, base, small, medium, large (only for Whisper)
+ASR_LANGUAGE = "de"  # Language code for transcription (German: "de" for Whisper, "de-DE" for macOS Speech)
+ASR_DEVICE = None  # Device for ASR (None = auto-detect, "cpu", "cuda", "mps") - only for Whisper
+ASR_ALWAYS_RUN = False  # If False, skip ASR when text is already provided (saves ~6-7 seconds)
 
 # WER (Word Error Rate) threshold for skipping phoneme analysis
 # If WER > WER_THRESHOLD, skip detailed phoneme analysis and show only text comparison
@@ -40,27 +43,9 @@ CONFIDENCE_THRESHOLD = 0.25  # Balanced threshold (0.3 was too low, 0.5 too high
 CONFIDENCE_THRESHOLD_UNCLEAR = 0.1  # Below this, mark as "unclear"
 CONFIDENCE_THRESHOLD_STRICT = 0.6  # For high-confidence filtering (optional)
 
-# Beam search decoding parameters
-# Beam search significantly improves accuracy compared to greedy decoding
-BEAM_SEARCH_ENABLED = True  # Use beam search instead of greedy decoding
-BEAM_WIDTH = 10  # Number of beams for beam search (10-20 recommended, higher = better but slower)
-BEAM_SEARCH_LENGTH_PENALTY = 0.5  # Length penalty (0.3-0.6, lower = prefer longer sequences)
-
-# Quick tuning presets (uncomment one to use):
-# PRESET_AGGRESSIVE = True  # More strict filtering, fewer errors but may miss phonemes
-# PRESET_LENIENT = True  # More lenient filtering, catches more phonemes but may include errors
-# PRESET_BALANCED = True  # Balanced (default, no need to uncomment)
-
-# Apply presets if specified
-if locals().get('PRESET_AGGRESSIVE', False):
-    CONFIDENCE_THRESHOLD = 0.4
-    BEAM_WIDTH = 15
-    BEAM_SEARCH_LENGTH_PENALTY = 0.4
-elif locals().get('PRESET_LENIENT', False):
-    CONFIDENCE_THRESHOLD = 0.3
-    BEAM_WIDTH = 20
-    BEAM_SEARCH_LENGTH_PENALTY = 0.3
-# PRESET_BALANCED uses default values above
+# Phoneme decoding: Using greedy decoding for honest pronunciation diagnosis
+# Greedy decoding reflects actual pronunciation without "correcting" user errors,
+# which is essential for accurate pronunciation diagnostics.
 
 # Forced Alignment settings
 FORCED_ALIGNMENT_BLANK_ID = 0

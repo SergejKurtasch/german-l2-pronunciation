@@ -52,20 +52,68 @@ asr_recognizer = None
 
 
 def initialize_asr_only():
-    """Initialize only ASR (Whisper) for fast startup."""
+    """Initialize only ASR (Whisper or macOS Speech) for fast startup."""
     global asr_recognizer
+    
+    # #region agent log
+    import json, time
+    asr_init_start = time.time()
+    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        f.write(json.dumps({"sessionId":"debug-session","runId":"asr-init","hypothesisId":"A","location":"app.py:initialize_asr_only:start","message":"ASR initialization started","data":{"asr_enabled":config.ASR_ENABLED,"asr_recognizer_is_none":asr_recognizer is None},"timestamp":int(time.time()*1000)})+'\n')
+    # #endregion
     
     if asr_recognizer is None and config.ASR_ENABLED:
         try:
+            requested_engine = getattr(config, 'ASR_ENGINE', 'whisper')
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"asr-init","hypothesisId":"A","location":"app.py:initialize_asr_only:before_get_speech_recognizer","message":"Requesting speech recognizer","data":{"requested_engine":requested_engine,"model_size":getattr(config, 'ASR_MODEL', 'medium')},"timestamp":int(time.time()*1000)})+'\n')
+            # #endregion
+            
             asr_recognizer = get_speech_recognizer(
-                model_size=config.ASR_MODEL,
-                device=config.ASR_DEVICE
+                model_size=getattr(config, 'ASR_MODEL', 'medium'),
+                device=getattr(config, 'ASR_DEVICE', None),
+                engine=requested_engine
             )
+            
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"asr-init","hypothesisId":"A","location":"app.py:initialize_asr_only:after_get_speech_recognizer","message":"Speech recognizer obtained","data":{"asr_recognizer_is_none":asr_recognizer is None,"has_recognizer_attr":hasattr(asr_recognizer, 'recognizer') if asr_recognizer else False,"has_model_attr":hasattr(asr_recognizer, 'model') if asr_recognizer else False,"type":str(type(asr_recognizer)) if asr_recognizer else None},"timestamp":int(time.time()*1000)})+'\n')
+            # #endregion
+            
             if asr_recognizer:
-                print(f"ASR recognizer (Whisper {config.ASR_MODEL}) initialized")
+                # Determine which engine was actually used (may differ from requested)
+                actual_engine = requested_engine
+                # Check if it's macOS wrapper by checking if it has recognizer attribute
+                if hasattr(asr_recognizer, 'recognizer'):
+                    actual_engine = "macos"
+                else:
+                    actual_engine = "whisper"
+                
+                # #region agent log
+                asr_init_elapsed = (time.time() - asr_init_start) * 1000
+                with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                    f.write(json.dumps({"sessionId":"debug-session","runId":"asr-init","hypothesisId":"A","location":"app.py:initialize_asr_only:engine_determined","message":"ASR engine determined","data":{"requested_engine":requested_engine,"actual_engine":actual_engine,"has_recognizer_attr":hasattr(asr_recognizer, 'recognizer'),"has_model_attr":hasattr(asr_recognizer, 'model')},"timestamp":int(time.time()*1000),"elapsed_ms":int(asr_init_elapsed)})+'\n')
+                # #endregion
+                
+                if actual_engine == "macos":
+                    print(f"ASR recognizer (macOS Speech) initialized")
+                else:
+                    if requested_engine == "macos" and actual_engine == "whisper":
+                        print(f"ASR recognizer (Whisper {getattr(config, 'ASR_MODEL', 'medium')}) initialized (macOS Speech not available, using fallback)")
+                    else:
+                        print(f"ASR recognizer (Whisper {getattr(config, 'ASR_MODEL', 'medium')}) initialized")
             else:
-                print("Warning: ASR recognizer not available (whisper not installed)")
+                # #region agent log
+                with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                    f.write(json.dumps({"sessionId":"debug-session","runId":"asr-init","hypothesisId":"A","location":"app.py:initialize_asr_only:recognizer_none","message":"ASR recognizer is None","data":{"requested_engine":requested_engine},"timestamp":int(time.time()*1000)})+'\n')
+                # #endregion
+                print(f"Warning: ASR recognizer not available (neither {requested_engine} nor Whisper available)")
         except Exception as e:
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"asr-init","hypothesisId":"A","location":"app.py:initialize_asr_only:exception","message":"ASR initialization exception","data":{"error":str(e),"error_type":type(e).__name__},"timestamp":int(time.time()*1000)})+'\n')
+            # #endregion
             print(f"Warning: ASR recognizer initialization failed: {e}")
             asr_recognizer = None
 
@@ -80,6 +128,44 @@ def load_dictionaries_in_background():
         print("All dictionaries loaded successfully in background!")
     except Exception as e:
         print(f"Warning: Dictionary loading failed: {e}")
+
+
+def load_phoneme_model_in_background():
+    """Load Wav2Vec2 phoneme recognition model in background."""
+    global phoneme_recognizer
+    
+    print("Stage 3: Loading phoneme recognition model (Wav2Vec2)...")
+    # #region agent log
+    import json, time
+    model_load_start = time.time()
+    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        f.write(json.dumps({"sessionId":"debug-session","runId":"background-load","hypothesisId":"PERF","location":"app.py:load_phoneme_model_in_background:start","message":"Phoneme model background loading started","data":{},"timestamp":int(time.time()*1000)})+'\n')
+    # #endregion
+    
+    try:
+        if phoneme_recognizer is None:
+            phoneme_recognizer = get_phoneme_recognizer(
+                model_name=config.MODEL_NAME,
+                device=config.MODEL_DEVICE if config.MODEL_DEVICE != "auto" else None
+            )
+            model_load_elapsed = (time.time() - model_load_start) * 1000
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"background-load","hypothesisId":"PERF","location":"app.py:load_phoneme_model_in_background:completed","message":"Phoneme model loaded in background","data":{"model_name":phoneme_recognizer.model_name if phoneme_recognizer else None},"timestamp":int(time.time()*1000),"elapsed_ms":int(model_load_elapsed)})+'\n')
+            # #endregion
+            print(f"Phoneme recognition model loaded successfully! (took {model_load_elapsed/1000:.2f}s)")
+        else:
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"background-load","hypothesisId":"PERF","location":"app.py:load_phoneme_model_in_background:already_loaded","message":"Phoneme model already loaded","data":{},"timestamp":int(time.time()*1000)})+'\n')
+            # #endregion
+            print("Phoneme recognition model already loaded.")
+    except Exception as e:
+        # #region agent log
+        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            f.write(json.dumps({"sessionId":"debug-session","runId":"background-load","hypothesisId":"PERF","location":"app.py:load_phoneme_model_in_background:error","message":"Phoneme model loading failed","data":{"error":str(e),"error_type":type(e).__name__},"timestamp":int(time.time()*1000)})+'\n')
+        # #endregion
+        print(f"Warning: Phoneme model loading failed: {e}")
 
 
 def collapse_consecutive_duplicates(phonemes: List[str]) -> List[str]:
@@ -119,9 +205,18 @@ def initialize_components():
     # global vad_detector, audio_normalizer, phoneme_recognizer, phoneme_filter, forced_aligner, diagnostic_engine, optional_validator, asr_recognizer
     global audio_normalizer, phoneme_recognizer, phoneme_filter, forced_aligner, diagnostic_engine, optional_validator, asr_recognizer
     
+    import json, time
+    init_components_start = time.time()
+    
     if audio_normalizer is None:
         try:
+            comp_start = time.time()
             audio_normalizer = get_audio_normalizer()
+            comp_elapsed = (time.time() - comp_start) * 1000
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:initialize_components:audio_normalizer","message":"Audio normalizer initialized","data":{},"timestamp":int(time.time()*1000),"elapsed_ms":int(comp_elapsed)})+'\n')
+            # #endregion
             print("Audio normalizer initialized")
         except Exception as e:
             print(f"Warning: Audio normalizer initialization failed: {e}")
@@ -138,33 +233,77 @@ def initialize_components():
     
     if phoneme_recognizer is None:
         try:
+            comp_start = time.time()
             phoneme_recognizer = get_phoneme_recognizer(
                 model_name=config.MODEL_NAME,
                 device=config.MODEL_DEVICE if config.MODEL_DEVICE != "auto" else None
             )
+            comp_elapsed = (time.time() - comp_start) * 1000
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:initialize_components:phoneme_recognizer","message":"Phoneme recognizer initialized","data":{"model_name":phoneme_recognizer.model_name if phoneme_recognizer else None},"timestamp":int(time.time()*1000),"elapsed_ms":int(comp_elapsed)})+'\n')
+            # #endregion
             print(f"Phoneme recognizer (Wav2Vec2 XLSR-53 eSpeak) initialized with model: {phoneme_recognizer.model_name}")
         except Exception as e:
             print(f"Error: Phoneme recognizer initialization failed: {e}")
             raise
     
     if phoneme_filter is None:
+        comp_start = time.time()
         phoneme_filter = get_phoneme_filter(
             whitelist=config.PHONEME_WHITELIST,
             confidence_threshold=config.CONFIDENCE_THRESHOLD
         )
+        comp_elapsed = (time.time() - comp_start) * 1000
+        # #region agent log
+        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:initialize_components:phoneme_filter","message":"Phoneme filter initialized","data":{},"timestamp":int(time.time()*1000),"elapsed_ms":int(comp_elapsed)})+'\n')
+        # #endregion
         print("Phoneme filter initialized")
     
     if forced_aligner is None:
+        comp_start = time.time()
         forced_aligner = get_forced_aligner(blank_id=config.FORCED_ALIGNMENT_BLANK_ID)
+        comp_elapsed = (time.time() - comp_start) * 1000
+        # #region agent log
+        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:initialize_components:forced_aligner","message":"Forced aligner initialized","data":{},"timestamp":int(time.time()*1000),"elapsed_ms":int(comp_elapsed)})+'\n')
+        # #endregion
         print("Forced aligner initialized")
     
     if diagnostic_engine is None:
+        comp_start = time.time()
         diagnostic_engine = get_diagnostic_engine()
+        comp_elapsed = (time.time() - comp_start) * 1000
+        # #region agent log
+        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:initialize_components:diagnostic_engine","message":"Diagnostic engine initialized","data":{},"timestamp":int(time.time()*1000),"elapsed_ms":int(comp_elapsed)})+'\n')
+        # #endregion
         print("Diagnostic engine initialized")
     
     if optional_validator is None:
+        comp_start = time.time()
         optional_validator = get_optional_validator()
+        comp_elapsed = (time.time() - comp_start) * 1000
+        # #region agent log
+        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:initialize_components:optional_validator","message":"Optional validator initialized","data":{},"timestamp":int(time.time()*1000),"elapsed_ms":int(comp_elapsed)})+'\n')
+        # #endregion
         print("Optional validator initialized")
+    
+    # Preload G2P dictionaries to avoid lazy loading delay
+    comp_start = time.time()
+    from modules.g2p_module import get_g2p_converter
+    g2p_converter = get_g2p_converter(load_dicts_immediately=False)
+    if not g2p_converter._dicts_loaded:
+        print("Preloading G2P dictionaries...")
+        g2p_converter._load_dictionaries()
+        print("G2P dictionaries preloaded!")
+    comp_elapsed = (time.time() - comp_start) * 1000
+    # #region agent log
+    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:initialize_components:g2p_dictionaries","message":"G2P dictionaries preloaded","data":{"dicts_loaded":g2p_converter._dicts_loaded},"timestamp":int(time.time()*1000),"elapsed_ms":int(comp_elapsed)})+'\n')
+    # #endregion
     
     # ASR is loaded separately in initialize_asr_only()
     # Initialize ASR here only if not already loaded
@@ -176,7 +315,7 @@ def process_pronunciation(
     text: str,
     audio_file: Optional[Tuple[int, np.ndarray]] = None,
     enable_validation: bool = False
-) -> Tuple[str, str, str, str, str, str, str, Optional[Tuple[int, np.ndarray]]]:
+) -> Tuple[str, str, str, str, str, str, str, str]:
     """
     Process pronunciation validation.
     
@@ -187,37 +326,56 @@ def process_pronunciation(
         
     Returns:
         Tuple of:
-        1. Expected phonemes (HTML)
-        2. Recognized phonemes (HTML)
-        3. Side-by-side comparison (HTML)
-        4. Colored text (HTML)
-        5. Detailed report (HTML)
-        6. Technical information (HTML)
-        7. Raw phonemes (before filtering) (HTML)
-        8. Trimmed audio (Tuple[sample_rate, audio_array] or None)
+        1. Text with sources (HTML)
+        2. Expected phonemes (HTML)
+        3. Recognized phonemes (HTML)
+        4. Side-by-side comparison (HTML)
+        5. Colored text (HTML)
+        6. Detailed report (HTML)
+        7. Technical information (HTML)
+        8. Raw phonemes (before filtering) (HTML)
     """
+    # #region agent log
+    import json, time
+    start_time = time.time()
+    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:process_pronunciation:start","message":"Function started","data":{"text_length":len(text) if text else 0,"has_audio":audio_file is not None,"enable_validation":enable_validation},"timestamp":int(start_time*1000),"elapsed_ms":0})+'\n')
+    # #endregion
+    
     # Check if text is empty - if so, we'll use ASR to get text from audio
     text_is_empty = not text or not text.strip()
     
     if audio_file is None:
         error_html = "<div style='color: orange; padding: 10px;'>Please record or upload audio.</div>"
-        return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
+        return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html)
     
     try:
         # Initialize components
+        init_start = time.time()
         initialize_components()
+        init_elapsed = (time.time() - init_start) * 1000
+        # #region agent log
+        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:process_pronunciation:after_init","message":"Components initialized","data":{},"timestamp":int(time.time()*1000),"elapsed_ms":int(init_elapsed)})+'\n')
+        # #endregion
         
         # Extract audio
         if isinstance(audio_file, tuple):
             sample_rate, audio_array = audio_file
         else:
             error_html = "<div style='color: red; padding: 10px;'>Invalid audio format.</div>"
-            return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
+            return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html)
         
         # Save audio to temporary file
+        audio_save_start = time.time()
         with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_file:
             tmp_path = tmp_file.name
             sf.write(tmp_path, audio_array, sample_rate)
+        audio_save_elapsed = (time.time() - audio_save_start) * 1000
+        # #region agent log
+        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:process_pronunciation:after_audio_save","message":"Audio saved to temp file","data":{"audio_length_samples":len(audio_array),"sample_rate":sample_rate},"timestamp":int(time.time()*1000),"elapsed_ms":int(audio_save_elapsed)})+'\n')
+        # #endregion
         
         try:
             # Stage 0: Audio normalization (for AGC issues) - COMMENTED OUT
@@ -268,6 +426,7 @@ def process_pronunciation(
             #     vad_info = {'enabled': False, 'reason': 'VAD not available'}
             
             # Stage 2: ASR - Speech-to-Text recognition
+            asr_start = time.time()
             recognized_text = None
             wer_result = None
             
@@ -279,47 +438,92 @@ def process_pronunciation(
                             trimmed_audio_path,
                             language=config.ASR_LANGUAGE
                         )
+                        asr_elapsed = (time.time() - asr_start) * 1000
+                        # Determine ASR engine with detailed logging
+                        asr_engine = "unknown"
+                        asr_device = "unknown"
+                        has_recognizer = hasattr(asr_recognizer, 'recognizer')
+                        has_model = hasattr(asr_recognizer, 'model')
+                        asr_type = str(type(asr_recognizer))
+                        
+                        if has_recognizer:
+                            asr_engine = "macos"
+                            asr_device = "macos_native"  # macOS Speech uses native framework
+                        elif has_model:
+                            asr_engine = "whisper"
+                            # Get device from Whisper recognizer
+                            if hasattr(asr_recognizer, 'device'):
+                                asr_device = asr_recognizer.device
+                            else:
+                                asr_device = "unknown"
+                        
+                        # #region agent log
+                        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                            f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"B","location":"app.py:process_pronunciation:after_asr_empty_text","message":"ASR completed (empty text)","data":{"recognized_text":recognized_text,"asr_engine":asr_engine,"asr_device":asr_device,"has_recognizer_attr":has_recognizer,"has_model_attr":has_model,"asr_type":asr_type},"timestamp":int(time.time()*1000),"elapsed_ms":int(asr_elapsed)})+'\n')
+                        # #endregion
                         print(f"ASR: Recognized text (from audio): '{recognized_text}'")
                         
                         if not recognized_text or not recognized_text.strip():
                             error_html = "<div style='color: orange; padding: 10px;'>Could not recognize text from audio. Please try again or enter text manually.</div>"
-                            return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
+                            return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html)
                     except Exception as e:
                         print(f"Error: ASR failed: {e}")
                         error_html = f"<div style='color: red; padding: 10px;'>Failed to recognize text from audio: {str(e)}</div>"
-                        return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
+                        return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html)
                 else:
                     error_html = "<div style='color: orange; padding: 10px;'>ASR is not available. Please enter text manually or enable ASR in configuration.</div>"
-                    return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
-            elif asr_recognizer and config.ASR_ENABLED:
+                    return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html)
+            elif asr_recognizer and config.ASR_ENABLED and config.ASR_ALWAYS_RUN:
                 # Text is provided, ASR is optional (for comparison)
+                # Only run if ASR_ALWAYS_RUN is enabled to save time
                 try:
                     recognized_text = asr_recognizer.transcribe(
                         trimmed_audio_path,
                         language=config.ASR_LANGUAGE
                     )
+                    asr_elapsed = (time.time() - asr_start) * 1000
+                    # Determine ASR engine with detailed logging
+                    asr_engine = "unknown"
+                    asr_device = "unknown"
+                    has_recognizer = hasattr(asr_recognizer, 'recognizer')
+                    has_model = hasattr(asr_recognizer, 'model')
+                    asr_type = str(type(asr_recognizer))
+                    
+                    if has_recognizer:
+                        asr_engine = "macos"
+                        asr_device = "macos_native"  # macOS Speech uses native framework
+                    elif has_model:
+                        asr_engine = "whisper"
+                        # Get device from Whisper recognizer
+                        if hasattr(asr_recognizer, 'device'):
+                            asr_device = asr_recognizer.device
+                        else:
+                            asr_device = "unknown"
+                    
+                    # #region agent log
+                    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                        f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"B","location":"app.py:process_pronunciation:after_asr_optional","message":"ASR completed (optional)","data":{"recognized_text":recognized_text,"asr_engine":asr_engine,"asr_device":asr_device,"has_recognizer_attr":has_recognizer,"has_model_attr":has_model,"asr_type":asr_type},"timestamp":int(time.time()*1000),"elapsed_ms":int(asr_elapsed)})+'\n')
+                    # #endregion
                     print(f"ASR: Recognized text: '{recognized_text}'")
                     
                     # Stage 3: WER Calculation (only if text was provided)
                     if recognized_text:
-                        # #region agent log
-                        import json, time
-                        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
-                            f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"app.py:before_calculate_wer","message":"before calculate_wer call","data":{"text":text,"recognized_text":recognized_text,"text_is_none":text is None,"recognized_is_none":recognized_text is None},"timestamp":int(time.time()*1000)})+'\n')
-                        # #endregion
+                        wer_start = time.time()
                         try:
                             wer_result = calculate_wer(text, recognized_text)
+                            wer_elapsed = (time.time() - wer_start) * 1000
                             # #region agent log
                             with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
-                                f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"app.py:after_calculate_wer","message":"after calculate_wer call","data":{"wer_result":wer_result},"timestamp":int(time.time()*1000)})+'\n')
+                                f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:process_pronunciation:after_wer","message":"WER calculation completed","data":{"wer_result":wer_result},"timestamp":int(time.time()*1000),"elapsed_ms":int(wer_elapsed)})+'\n')
                             # #endregion
                             print(f"WER: {wer_result['wer']:.2%} (Substitutions: {wer_result['substitutions']}, "
                                   f"Deletions: {wer_result['deletions']}, Insertions: {wer_result['insertions']})")
                         except Exception as e:
+                            wer_elapsed = (time.time() - wer_start) * 1000
                             # #region agent log
                             import traceback
                             with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
-                                f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"app.py:calculate_wer_error","message":"calculate_wer raised exception","data":{"error":str(e),"error_type":type(e).__name__,"traceback":traceback.format_exc()},"timestamp":int(time.time()*1000)})+'\n')
+                                f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:process_pronunciation:wer_error","message":"WER calculation failed","data":{"error":str(e),"error_type":type(e).__name__},"timestamp":int(time.time()*1000),"elapsed_ms":int(wer_elapsed)})+'\n')
                             # #endregion
                             print(f"Error: WER calculation failed: {e}")
                             wer_result = None
@@ -327,6 +531,10 @@ def process_pronunciation(
                     print(f"Warning: ASR failed: {e}")
                     recognized_text = None
                     wer_result = None
+            else:
+                # Skip ASR if text is provided and ASR_ALWAYS_RUN is False
+                recognized_text = None
+                wer_result = None
             
             # Stage 4: Check WER threshold - skip phoneme analysis if WER is too high
             # Skip this check if text was empty (WER not calculated)
@@ -338,17 +546,6 @@ def process_pronunciation(
                 # #endregion
                 # High WER - show only text comparison
                 from modules.visualization import create_text_comparison_view
-                
-                # Load trimmed audio for return
-                trimmed_audio_data = None
-                if trimmed_audio_path and Path(trimmed_audio_path).exists():
-                    try:
-                        trimmed_audio, trimmed_sr = sf.read(trimmed_audio_path)
-                        if len(trimmed_audio.shape) > 1:
-                            trimmed_audio = np.mean(trimmed_audio, axis=1)
-                        trimmed_audio_data = (trimmed_sr, trimmed_audio)
-                    except Exception as e:
-                        print(f"Warning: Failed to load trimmed audio for output: {e}")
                 
                 # Create simplified view
                 try:
@@ -419,24 +616,30 @@ def process_pronunciation(
                     comparison_html,
                     comparison_html,
                     technical_html,
-                    raw_phonemes_html,
-                    trimmed_audio_data
+                    raw_phonemes_html
                 )
             
             # Stage 5: G2P - Get phonemes from recognized text (or expected text if ASR not available)
             # Use recognized text for phoneme analysis if available, otherwise use expected text
+            g2p_start = time.time()
             text_for_phonemes = recognized_text if recognized_text else text
             expected_phonemes_dict = get_expected_phonemes(text_for_phonemes)
             expected_phonemes = [ph.get('phoneme', '') for ph in expected_phonemes_dict]
             # Apply CTC collapse logic to expected phonemes (same as model does)
             expected_phonemes = collapse_consecutive_duplicates(expected_phonemes)
+            g2p_elapsed = (time.time() - g2p_start) * 1000
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:process_pronunciation:after_g2p","message":"G2P completed","data":{"expected_phonemes_count":len(expected_phonemes)},"timestamp":int(time.time()*1000),"elapsed_ms":int(g2p_elapsed)})+'\n')
+            # #endregion
             print(f"Expected phonemes (from {'recognized' if recognized_text else 'expected'} text): {len(expected_phonemes)}")
             
             if not expected_phonemes:
                 error_html = "<div style='color: red; padding: 10px;'>Failed to extract expected phonemes from text.</div>"
-                return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
+                return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html)
             
             # Stage 3: Phoneme Recognition (Wav2Vec2 XLSR-53 eSpeak)
+            phoneme_rec_start = time.time()
             logits, emissions = phoneme_recognizer.recognize_phonemes(
                 trimmed_audio_path,
                 sample_rate=config.SAMPLE_RATE
@@ -444,12 +647,17 @@ def process_pronunciation(
             vocab = phoneme_recognizer.get_vocab()
             
             # Decode phonemes (for display)
+            decode_start = time.time()
             decoded_phonemes_str = phoneme_recognizer.decode_phonemes(logits)
-            
+            decode_elapsed = (time.time() - decode_start) * 1000
             # #region agent log
-            import json
             with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
-                f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"app.py:322","message":"decoded_phonemes_str after decode_phonemes","data":{"decoded_phonemes_str":decoded_phonemes_str,"length":len(decoded_phonemes_str)},"timestamp":int(__import__('time').time()*1000)})+'\n')
+                f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:process_pronunciation:after_decode","message":"Phonemes decoded","data":{"decoded_length":len(decoded_phonemes_str)},"timestamp":int(time.time()*1000),"elapsed_ms":int(decode_elapsed)})+'\n')
+            # #endregion
+            phoneme_rec_elapsed = (time.time() - phoneme_rec_start) * 1000
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:process_pronunciation:after_phoneme_recognition","message":"Phoneme recognition completed","data":{"decoded_phonemes_length":len(decoded_phonemes_str)},"timestamp":int(time.time()*1000),"elapsed_ms":int(phoneme_rec_elapsed)})+'\n')
             # #endregion
             
             raw_phonemes = decoded_phonemes_str.split()
@@ -465,6 +673,7 @@ def process_pronunciation(
             
             # Stage 4: Multi-level Filtering
             # Note: Filtering is kept for forced alignment (uses ARPABET), but raw_phonemes are used for display and alignment
+            filter_start = time.time()
             filtered_phonemes = phoneme_filter.filter_combined(
                 logits,
                 raw_phonemes,
@@ -472,26 +681,30 @@ def process_pronunciation(
             )
             
             recognized_phonemes = [ph.get('phoneme', '') for ph in filtered_phonemes]
+            filter_elapsed = (time.time() - filter_start) * 1000
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:process_pronunciation:after_filtering","message":"Phoneme filtering completed","data":{"filtered_phonemes_count":len(recognized_phonemes)},"timestamp":int(time.time()*1000),"elapsed_ms":int(filter_elapsed)})+'\n')
+            # #endregion
             print(f"Filtered phonemes: {len(recognized_phonemes)}")
             
             # Use raw_phonemes for validation - model already outputs accurate IPA phonemes
             if not raw_phonemes:
                 error_html = "<div style='color: orange; padding: 10px;'>No phonemes recognized. Audio may be unclear.</div>"
-                # Still return trimmed audio even if no phonemes recognized
-                trimmed_audio_data = None
-                if trimmed_audio_path and Path(trimmed_audio_path).exists():
-                    try:
-                        trimmed_audio, trimmed_sr = sf.read(trimmed_audio_path)
-                        trimmed_audio_data = (trimmed_sr, trimmed_audio)
-                    except:
-                        pass
                 # Create raw phonemes display even if filtered is empty
                 raw_phonemes_html = create_raw_phonemes_display(raw_phonemes)
-                return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, raw_phonemes_html, trimmed_audio_data)
+                return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, raw_phonemes_html)
             
             # Stage 5: Forced Alignment (for recognized phonemes)
             # Load waveform for forced alignment
+            alignment_start = time.time()
+            waveform_load_start = time.time()
             waveform, sr = librosa.load(trimmed_audio_path, sr=config.SAMPLE_RATE, mono=True)
+            waveform_load_elapsed = (time.time() - waveform_load_start) * 1000
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:process_pronunciation:after_waveform_load","message":"Waveform loaded for alignment","data":{"waveform_length_samples":len(waveform),"sample_rate":sr},"timestamp":int(time.time()*1000),"elapsed_ms":int(waveform_load_elapsed)})+'\n')
+            # #endregion
             waveform_tensor = torch.from_numpy(waveform).unsqueeze(0)
             
             # Extract segments for recognized phonemes
@@ -504,6 +717,7 @@ def process_pronunciation(
             recognized_segments = []
             if len(recognized_phonemes_arpabet) > 0:
                 try:
+                    forced_align_start = time.time()
                     recognized_segments = forced_aligner.extract_phoneme_segments(
                         waveform_tensor,
                         recognized_phonemes_arpabet,
@@ -511,6 +725,11 @@ def process_pronunciation(
                         vocab,
                         config.SAMPLE_RATE
                     )
+                    forced_align_elapsed = (time.time() - forced_align_start) * 1000
+                    # #region agent log
+                    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                        f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:process_pronunciation:after_forced_align","message":"Forced alignment extraction completed","data":{"segments_count":len(recognized_segments),"phonemes_count":len(recognized_phonemes_arpabet)},"timestamp":int(time.time()*1000),"elapsed_ms":int(forced_align_elapsed)})+'\n')
+                    # #endregion
                     # Update segment labels to IPA - use raw_phonemes for accurate IPA labels
                     # Note: segment count may differ from raw_phonemes count due to forced alignment
                     for i, segment in enumerate(recognized_segments):
@@ -518,9 +737,15 @@ def process_pronunciation(
                             segment.label = raw_phonemes[i]
                 except Exception as e:
                     print(f"Warning: Forced alignment failed: {e}")
+            alignment_elapsed = (time.time() - alignment_start) * 1000
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:process_pronunciation:after_alignment","message":"Forced alignment completed","data":{"segments_count":len(recognized_segments)},"timestamp":int(time.time()*1000),"elapsed_ms":int(alignment_elapsed)})+'\n')
+            # #endregion
             
             # Stage 6: Needleman-Wunsch Alignment
             # Use raw_phonemes directly - model already outputs accurate IPA phonemes
+            nw_start = time.time()
             aligned_pairs, alignment_score = needleman_wunsch_align(
                 expected_phonemes,
                 raw_phonemes,
@@ -528,6 +753,11 @@ def process_pronunciation(
                 mismatch_score=config.NW_MISMATCH_SCORE,
                 gap_penalty=config.NW_GAP_PENALTY
             )
+            nw_elapsed = (time.time() - nw_start) * 1000
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:process_pronunciation:after_nw_align","message":"Needleman-Wunsch alignment completed","data":{"aligned_pairs_count":len(aligned_pairs),"alignment_score":alignment_score},"timestamp":int(time.time()*1000),"elapsed_ms":int(nw_elapsed)})+'\n')
+            # #endregion
             
             # #region agent log
             aligned_pairs_with_dash = [(exp, rec) for exp, rec in aligned_pairs if exp == '-' or rec == '-']
@@ -538,16 +768,30 @@ def process_pronunciation(
             print(f"Aligned pairs: {len(aligned_pairs)}, score: {alignment_score:.2f}")
             
             # Stage 7: PER Calculation
+            per_start = time.time()
             per_result = calculate_per(aligned_pairs)
+            per_elapsed = (time.time() - per_start) * 1000
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:process_pronunciation:after_per","message":"PER calculation completed","data":{"per":per_result['per']},"timestamp":int(time.time()*1000),"elapsed_ms":int(per_elapsed)})+'\n')
+            # #endregion
             print(f"PER: {per_result['per']:.2%} (Substitutions: {per_result['substitutions']}, "
                   f"Deletions: {per_result['deletions']}, Insertions: {per_result['insertions']})")
             
             # Stage 8: Diagnostic Analysis
+            diagnostic_start = time.time()
             diagnostic_results = diagnostic_engine.analyze_pronunciation(aligned_pairs)
+            diagnostic_elapsed = (time.time() - diagnostic_start) * 1000
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:process_pronunciation:after_diagnostic","message":"Diagnostic analysis completed","data":{"results_count":len(diagnostic_results)},"timestamp":int(time.time()*1000),"elapsed_ms":int(diagnostic_elapsed)})+'\n')
+            # #endregion
             
             # Stage 9: Optional Validation
+            validation_start = time.time()
             if enable_validation and optional_validator:
                 # For each error, try to validate with trained model
+                validation_count = 0
                 for i, result in enumerate(diagnostic_results):
                     if not result.get('is_correct', False) and not result.get('is_missing', False):
                         expected_ph = result.get('expected', '')
@@ -580,14 +824,27 @@ def process_pronunciation(
                                 result['validation_result'] = validation_result
                                 if validation_result.get('is_correct'):
                                     result['is_correct'] = True  # Override if validation says correct
+                                validation_count += 1
+            validation_elapsed = (time.time() - validation_start) * 1000
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:process_pronunciation:after_validation","message":"Optional validation completed","data":{"enabled":enable_validation and optional_validator is not None,"validation_count":validation_count if enable_validation and optional_validator else 0},"timestamp":int(time.time()*1000),"elapsed_ms":int(validation_elapsed)})+'\n')
+            # #endregion
             
             # Stage 10: Visualization
+            viz_start = time.time()
             # Output 0: Text with source information (for debugging)
             from modules.visualization import create_text_with_sources_display
+            viz_text_sources_start = time.time()
             text_with_sources_html = create_text_with_sources_display(
                 text_for_phonemes,
                 expected_phonemes_dict
             )
+            viz_text_sources_elapsed = (time.time() - viz_text_sources_start) * 1000
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:process_pronunciation:after_viz_text_sources","message":"Text with sources visualization completed","data":{"html_length":len(text_with_sources_html)},"timestamp":int(time.time()*1000),"elapsed_ms":int(viz_text_sources_elapsed)})+'\n')
+            # #endregion
             
             # Output 1: Expected phonemes (show expected phonemes directly, with spaces between phonemes)
             # #region agent log
@@ -610,7 +867,13 @@ def process_pronunciation(
                 f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"C","location":"app.py:456","message":"raw_phonemes before create_simple_phoneme_comparison","data":{"raw_phonemes":raw_phonemes,"count":len(raw_phonemes),"joined":" ".join(raw_phonemes)},"timestamp":int(__import__('time').time()*1000)})+'\n')
             # #endregion
             
+            viz_recognized_start = time.time()
             recognized_html = create_simple_phoneme_comparison([], raw_phonemes)
+            viz_recognized_elapsed = (time.time() - viz_recognized_start) * 1000
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:process_pronunciation:after_viz_recognized","message":"Recognized phonemes visualization completed","data":{"html_length":len(recognized_html)},"timestamp":int(time.time()*1000),"elapsed_ms":int(viz_recognized_elapsed)})+'\n')
+            # #endregion
             
             # #region agent log
             with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
@@ -618,15 +881,20 @@ def process_pronunciation(
             # #endregion
             
             # Output 3: Side-by-side comparison
+            viz_side_by_side_start = time.time()
             side_by_side_html = create_side_by_side_comparison(
                 expected_phonemes,
                 raw_phonemes,
                 aligned_pairs
             )
-            
+            viz_side_by_side_elapsed = (time.time() - viz_side_by_side_start) * 1000
             # #region agent log
             import re
             side_by_side_dashes = [m.start() for m in re.finditer(r'[^<>\'"]-', side_by_side_html)]
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:process_pronunciation:after_viz_side_by_side","message":"Side-by-side comparison visualization completed","data":{"html_length":len(side_by_side_html)},"timestamp":int(time.time()*1000),"elapsed_ms":int(viz_side_by_side_elapsed)})+'\n')
+            # #endregion
+            # #region agent log
             with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
                 f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"L","location":"app.py:487","message":"side_by_side_html after create_side_by_side_comparison","data":{"html_length":len(side_by_side_html),"html_preview":side_by_side_html[:300],"dash_count":side_by_side_html.count('-'),"dashes_in_text":side_by_side_dashes[:20]},"timestamp":int(__import__('time').time()*1000)})+'\n')
             # #endregion
@@ -648,12 +916,19 @@ def process_pronunciation(
             
             # Use recognized text for colored text if original text was empty
             text_for_colored = recognized_text if text_is_empty else text
+            viz_colored_start = time.time()
             colored_text_html = create_colored_text(text_for_colored, aligned_pairs_dict)
+            viz_colored_elapsed = (time.time() - viz_colored_start) * 1000
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:process_pronunciation:after_viz_colored","message":"Colored text visualization completed","data":{"html_length":len(colored_text_html)},"timestamp":int(time.time()*1000),"elapsed_ms":int(viz_colored_elapsed)})+'\n')
+            # #endregion
             
             # Output 5: Detailed report (with WER and PER)
             # Don't show WER if text was empty (WER not calculated)
             show_wer_in_report = config.SHOW_WER and not text_is_empty and wer_result is not None
             text_for_report = recognized_text if text_is_empty else text
+            viz_report_start = time.time()
             detailed_report_html = create_detailed_report(
                 aligned_pairs_dict,
                 diagnostic_results,
@@ -662,6 +937,11 @@ def process_pronunciation(
                 per_result=per_result if config.SHOW_PER else None,
                 recognized_text=recognized_text
             )
+            viz_report_elapsed = (time.time() - viz_report_start) * 1000
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:process_pronunciation:after_viz_report","message":"Detailed report visualization completed","data":{"html_length":len(detailed_report_html)},"timestamp":int(time.time()*1000),"elapsed_ms":int(viz_report_elapsed)})+'\n')
+            # #endregion
             
             # Output 6: Technical information
             wer_info = ""
@@ -706,26 +986,23 @@ def process_pronunciation(
             """
             
             # Output 7: Raw phonemes (before filtering)
+            viz_raw_start = time.time()
             raw_phonemes_html = create_raw_phonemes_display(raw_phonemes)
-            
-            # Load trimmed audio for return (don't delete it yet)
-            trimmed_audio_data = None
-            if trimmed_audio_path and Path(trimmed_audio_path).exists():
-                try:
-                    trimmed_audio, trimmed_sr = sf.read(trimmed_audio_path)
-                    # Convert to mono if stereo
-                    if len(trimmed_audio.shape) > 1:
-                        trimmed_audio = np.mean(trimmed_audio, axis=1)
-                    trimmed_audio_data = (trimmed_sr, trimmed_audio)
-                except Exception as e:
-                    print(f"Warning: Failed to load trimmed audio for output: {e}")
-            
+            viz_raw_elapsed = (time.time() - viz_raw_start) * 1000
             # #region agent log
-            import re
-            recognized_dashes_in_text = [m.start() for m in re.finditer(r'[^<>\'"]-', recognized_html)]
-            side_by_side_dashes_in_text = [m.start() for m in re.finditer(r'[^<>\'"]-', side_by_side_html)]
             with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
-                f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"H","location":"app.py:575","message":"before return from process_pronunciation","data":{"recognized_html_full":recognized_html,"recognized_html_has_dash":'-' in recognized_html,"recognized_html_dash_count":recognized_html.count('-'),"recognized_dashes_in_text":recognized_dashes_in_text,"side_by_side_html_preview":side_by_side_html[:400],"side_by_side_dashes_in_text":side_by_side_dashes_in_text},"timestamp":int(__import__('time').time()*1000)})+'\n')
+                f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:process_pronunciation:after_viz_raw","message":"Raw phonemes visualization completed","data":{"html_length":len(raw_phonemes_html)},"timestamp":int(time.time()*1000),"elapsed_ms":int(viz_raw_elapsed)})+'\n')
+            # #endregion
+            viz_elapsed = (time.time() - viz_start) * 1000
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:process_pronunciation:after_visualization","message":"Visualization completed","data":{},"timestamp":int(time.time()*1000),"elapsed_ms":int(viz_elapsed)})+'\n')
+            # #endregion
+            
+            total_elapsed = (time.time() - start_time) * 1000
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:process_pronunciation:end","message":"Function completed","data":{"total_elapsed_ms":int(total_elapsed)},"timestamp":int(time.time()*1000),"elapsed_ms":int(total_elapsed)})+'\n')
             # #endregion
             
             return (
@@ -736,8 +1013,7 @@ def process_pronunciation(
                 colored_text_html,
                 detailed_report_html,
                 technical_html,
-                raw_phonemes_html,
-                trimmed_audio_data
+                raw_phonemes_html
             )
         
         finally:
@@ -762,21 +1038,26 @@ def process_pronunciation(
             </details>
         </div>
         """
-        return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html, None)
+        return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html)
 
 
 def load_models_in_background():
-    """Load models in background: first ASR, then dictionaries."""
+    """Load models in background: first ASR, then dictionaries, then phoneme model."""
     print("Starting background model loading...")
     try:
-        # Stage 1: Load ASR (Whisper) first - this is critical for user experience
-        print("Stage 1: Loading ASR (Whisper)...")
+        # Stage 1: Load ASR (Whisper or macOS Speech) first - this is critical for user experience
+        print("Stage 1: Loading ASR...")
         initialize_asr_only()
         print("ASR loaded successfully!")
         
         # Stage 2: Load dictionaries after ASR is ready
         print("Stage 2: Loading G2P dictionaries...")
         load_dictionaries_in_background()
+        
+        # Stage 3: Load phoneme recognition model (Wav2Vec2) in background
+        # This prevents 5+ second delay on first button click
+        load_phoneme_model_in_background()
+        
         print("All models loaded successfully in background!")
     except Exception as e:
         print(f"Warning: Some components failed to initialize in background: {e}")
@@ -826,11 +1107,6 @@ def create_interface():
                 report_output = gr.HTML(label="5. Detailed Report")
                 technical_output = gr.HTML(label="6. Technical Information")
                 raw_phonemes_output = gr.HTML(label="7. Raw Phonemes (Before Filtering)")
-                trimmed_audio_output = gr.Audio(
-                    label="8. Processed Audio (VAD disabled)",
-                    type="numpy",
-                    visible=True
-                )
         
         # Examples
         gr.Examples(
@@ -856,8 +1132,7 @@ def create_interface():
                 colored_output,
                 report_output,
                 technical_output,
-                raw_phonemes_output,
-                trimmed_audio_output
+                raw_phonemes_output
             ]
         )
         

@@ -252,10 +252,20 @@ class PhonemeRecognizer:
             - logits: Raw model output (batch, time, vocab_size)
             - emissions: Log-softmax of logits (for forced alignment)
         """
+        import json, time
+        rec_start = time.time()
+        
         # Load audio
+        audio_load_start = time.time()
         audio, sr = librosa.load(audio_path, sr=sample_rate, mono=True)
+        audio_load_elapsed = (time.time() - audio_load_start) * 1000
+        # #region agent log
+        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"phoneme_recognition.py:recognize_phonemes:after_audio_load","message":"Audio loaded for recognition","data":{"audio_length_samples":len(audio),"sample_rate":sr},"timestamp":int(time.time()*1000),"elapsed_ms":int(audio_load_elapsed)})+'\n')
+        # #endregion
         
         # Process audio through processor (or feature extractor if processor is just feature extractor)
+        process_start = time.time()
         if hasattr(self.processor, 'feature_extractor'):
             # Full processor with tokenizer
             input_values = self.processor(
@@ -270,13 +280,36 @@ class PhonemeRecognizer:
                 sampling_rate=sample_rate,
                 return_tensors="pt"
             ).input_values.to(self.device)
+        process_elapsed = (time.time() - process_start) * 1000
+        # #region agent log
+        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"phoneme_recognition.py:recognize_phonemes:after_processing","message":"Audio processed through feature extractor","data":{"input_shape":list(input_values.shape)},"timestamp":int(time.time()*1000),"elapsed_ms":int(process_elapsed)})+'\n')
+        # #endregion
         
         # Get logits
+        inference_start = time.time()
         with torch.no_grad():
             logits = self.model(input_values).logits
+        inference_elapsed = (time.time() - inference_start) * 1000
+        # #region agent log
+        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"phoneme_recognition.py:recognize_phonemes:after_inference","message":"Model inference completed","data":{"logits_shape":list(logits.shape)},"timestamp":int(time.time()*1000),"elapsed_ms":int(inference_elapsed)})+'\n')
+        # #endregion
         
         # Compute emissions (log-softmax) for forced alignment
+        emissions_start = time.time()
         emissions = torch.log_softmax(logits, dim=-1)
+        emissions_elapsed = (time.time() - emissions_start) * 1000
+        # #region agent log
+        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"phoneme_recognition.py:recognize_phonemes:after_emissions","message":"Emissions computed","data":{},"timestamp":int(time.time()*1000),"elapsed_ms":int(emissions_elapsed)})+'\n')
+        # #endregion
+        
+        total_elapsed = (time.time() - rec_start) * 1000
+        # #region agent log
+        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"phoneme_recognition.py:recognize_phonemes:end","message":"Phoneme recognition completed","data":{"total_elapsed_ms":int(total_elapsed)},"timestamp":int(time.time()*1000),"elapsed_ms":int(total_elapsed)})+'\n')
+        # #endregion
         
         return logits, emissions
     
@@ -289,135 +322,21 @@ class PhonemeRecognizer:
         """
         return self.vocab
     
-    def _ctc_beam_search(
-        self,
-        logits: torch.Tensor,
-        beam_width: int = 5,
-        length_penalty: float = 0.6
-    ) -> List[int]:
+    def decode_phonemes(self, logits: torch.Tensor) -> str:
         """
-        CTC beam search decoding for better accuracy.
-        
-        Args:
-            logits: Model logits (batch, time, vocab_size)
-            beam_width: Number of beams
-            length_penalty: Length penalty factor
-            
-        Returns:
-            List of token IDs (best path)
-        """
-        import torch.nn.functional as F
-        
-        # Get log probabilities
-        log_probs = F.log_softmax(logits, dim=-1)  # (batch, time, vocab_size)
-        
-        # Get blank token ID
-        blank_id = 0
-        if self.vocab:
-            blank_tokens = ['|', '<pad>', '<blank>', '[PAD]', '[BLANK]', 'pad', 'blank']
-            for blank_token in blank_tokens:
-                if blank_token in self.vocab:
-                    blank_id = self.vocab[blank_token]
-                    break
-        
-        batch_size, seq_len, vocab_size = log_probs.shape
-        log_probs = log_probs[0]  # (time, vocab_size)
-        
-        # Initialize beams: (score, sequence, last_token)
-        beams = [(0.0, [], None)]
-        
-        for t in range(seq_len):
-            new_beams = []
-            beam_dict = {}  # Use dict to merge beams with same (sequence, last_token)
-            
-            for score, sequence, last_token in beams:
-                # Get top-k tokens at this time step (more candidates for better accuracy)
-                top_k = min(beam_width * 3, vocab_size)
-                top_k_probs, top_k_ids = torch.topk(log_probs[t], top_k)
-                top_k_probs = top_k_probs.cpu().numpy()
-                top_k_ids = top_k_ids.cpu().numpy()
-                
-                # Always consider blank token (CTC allows staying in same state)
-                blank_score = score + log_probs[t, blank_id].item()
-                blank_key = (tuple(sequence), last_token)
-                if blank_key not in beam_dict or beam_dict[blank_key][0] < blank_score:
-                    beam_dict[blank_key] = (blank_score, sequence.copy(), last_token)
-                
-                for log_prob, token_id in zip(top_k_probs, top_k_ids):
-                    token_id = int(token_id.item())
-                    new_score = score + log_prob
-                    new_sequence = sequence.copy()
-                    new_last_token = last_token
-                    
-                    # CTC rules:
-                    # 1. Skip blank tokens (already handled above)
-                    if token_id == blank_id:
-                        continue
-                    
-                    # 2. If same as last token, extend current beam without adding (CTC collapse)
-                    if token_id == last_token:
-                        # This extends the current sequence but doesn't add new token
-                        # The score improves but sequence stays same
-                        same_key = (tuple(sequence), last_token)
-                        if same_key not in beam_dict or beam_dict[same_key][0] < new_score:
-                            beam_dict[same_key] = (new_score, sequence.copy(), last_token)
-                        continue
-                    
-                    # 3. Add new token
-                    new_sequence.append(token_id)
-                    new_last_token = token_id
-                    new_key = (tuple(new_sequence), new_last_token)
-                    if new_key not in beam_dict or beam_dict[new_key][0] < new_score:
-                        beam_dict[new_key] = (new_score, new_sequence, new_last_token)
-            
-            # Convert dict to list and keep top beam_width beams
-            beams = list(beam_dict.values())
-            beams.sort(key=lambda x: x[0], reverse=True)
-            beams = beams[:beam_width]
-            
-            # If no beams, break early
-            if not beams:
-                break
-        
-        # Apply length penalty and select best beam
-        if beams:
-            best_score, best_sequence, _ = max(beams, key=lambda x: x[0] + length_penalty * len(x[1]))
-            return best_sequence
-        
-        return []
-    
-    def decode_phonemes(self, logits: torch.Tensor, use_beam_search: Optional[bool] = None) -> str:
-        """
-        Decode logits to phoneme string using CTC decoding (greedy or beam search).
+        Decode logits to phoneme string using greedy CTC decoding.
         Properly handles CTC blank tokens and removes repetitions.
         Uses vocab.json to correctly decode IPA phoneme symbols.
         
+        Uses greedy decoding for honest pronunciation diagnosis - reflects actual
+        pronunciation without "correcting" user errors.
+        
         Args:
             logits: Model logits (batch, time, vocab_size)
-            use_beam_search: Whether to use beam search (None = use config setting)
             
         Returns:
             Decoded phoneme string with IPA symbols
         """
-        # Check if beam search should be used
-        if use_beam_search is None:
-            try:
-                import config
-                use_beam_search = getattr(config, 'BEAM_SEARCH_ENABLED', False)
-                beam_width = getattr(config, 'BEAM_WIDTH', 5)
-                length_penalty = getattr(config, 'BEAM_SEARCH_LENGTH_PENALTY', 0.6)
-            except:
-                use_beam_search = False
-                beam_width = 5
-                length_penalty = 0.6
-        else:
-            try:
-                import config
-                beam_width = getattr(config, 'BEAM_WIDTH', 5)
-                length_penalty = getattr(config, 'BEAM_SEARCH_LENGTH_PENALTY', 0.6)
-            except:
-                beam_width = 5
-                length_penalty = 0.6
         # Determine blank token ID from vocab.json
         # For CTC models, blank is typically token with ID 0 or token "|" (pipe symbol)
         blank_id = 0  # Default CTC blank ID
@@ -437,41 +356,32 @@ class PhonemeRecognizer:
             elif hasattr(self.processor.tokenizer, '_pad_token') and hasattr(self.processor.tokenizer._pad_token, 'id'):
                 pad_token_id = self.processor.tokenizer._pad_token.id
         
-        # Choose decoding method
-        if use_beam_search:
-            # Use beam search decoding (already handles CTC collapse)
-            decoded_ids = self._ctc_beam_search(logits, beam_width, length_penalty)
-            if not decoded_ids:
-                # Fallback to greedy if beam search failed
-                use_beam_search = False
+        # Use greedy decoding (argmax at each time step)
+        predicted_ids = torch.argmax(logits, dim=-1)  # (batch, time)
+        sequence = predicted_ids[0].cpu().tolist()
         
-        if not use_beam_search:
-            # Use greedy decoding (original method)
-            predicted_ids = torch.argmax(logits, dim=-1)  # (batch, time)
-            sequence = predicted_ids[0].cpu().tolist()
+        # CTC collapse: remove blanks and consecutive duplicates
+        decoded_ids = []
+        prev_id = None
+        id_to_token = {v: k for k, v in (self.vocab.items() if self.vocab else {})}
+        # Special tokens to skip (silence, padding, etc.)
+        skip_tokens = {'|', '[PAD]', '<pad>', '<blank>', '[BLANK]', 'h#', 'spn', ''}
+        
+        for token_id in sequence:
+            token_name = id_to_token.get(token_id, '')
             
-            # CTC collapse: remove blanks and consecutive duplicates
-            decoded_ids = []
-            prev_id = None
-            id_to_token = {v: k for k, v in (self.vocab.items() if self.vocab else {})}
-            # Special tokens to skip (silence, padding, etc.)
-            skip_tokens = {'|', '[PAD]', '<pad>', '<blank>', '[BLANK]', 'h#', 'spn', ''}
-            
-            for token_id in sequence:
-                token_name = id_to_token.get(token_id, '')
-                
-                # Skip blank tokens, PAD tokens, and special silence tokens
-                if (token_id == blank_id or 
-                    (pad_token_id is not None and token_id == pad_token_id) or
-                    token_name in skip_tokens):
-                    prev_id = None
-                    continue
-                # Skip consecutive duplicates (CTC collapse)
-                if token_id != prev_id:
-                    decoded_ids.append(token_id)
-                    prev_id = token_id
-                else:
-                    prev_id = None  # Reset to allow same token later
+            # Skip blank tokens, PAD tokens, and special silence tokens
+            if (token_id == blank_id or 
+                (pad_token_id is not None and token_id == pad_token_id) or
+                token_name in skip_tokens):
+                prev_id = None
+                continue
+            # Skip consecutive duplicates (CTC collapse)
+            if token_id != prev_id:
+                decoded_ids.append(token_id)
+                prev_id = token_id
+            else:
+                prev_id = None  # Reset to allow same token later
         
         # Convert IDs to tokens using vocab.json for proper IPA decoding
         if not self.vocab:

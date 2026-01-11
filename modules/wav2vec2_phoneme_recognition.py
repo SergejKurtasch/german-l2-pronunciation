@@ -299,41 +299,23 @@ class Wav2Vec2PhonemeRecognizer:
         """
         return self.vocab or {}
     
-    def decode_phonemes(self, logits: torch.Tensor, use_beam_search: Optional[bool] = None) -> str:
+    def decode_phonemes(self, logits: torch.Tensor) -> str:
         """
-        Decode logits to phoneme string using CTC decoding (greedy or beam search).
+        Decode logits to phoneme string using greedy CTC decoding.
         Properly handles CTC blank tokens and removes repetitions.
         Uses vocab.json to correctly decode IPA phoneme symbols.
         
+        Uses greedy decoding for honest pronunciation diagnosis - reflects actual
+        pronunciation without "correcting" user errors.
+        
         Args:
             logits: Model logits (batch, time, vocab_size)
-            use_beam_search: Whether to use beam search (None = use config setting)
             
         Returns:
             Decoded phoneme string with IPA symbols
         """
         if not self.tokenizer:
             raise RuntimeError("Tokenizer not loaded")
-        
-        # Check if beam search should be used
-        if use_beam_search is None:
-            try:
-                import config
-                use_beam_search = getattr(config, 'BEAM_SEARCH_ENABLED', False)
-                beam_width = getattr(config, 'BEAM_WIDTH', 10)
-                length_penalty = getattr(config, 'BEAM_SEARCH_LENGTH_PENALTY', 0.5)
-            except:
-                use_beam_search = False
-                beam_width = 10
-                length_penalty = 0.5
-        else:
-            try:
-                import config
-                beam_width = getattr(config, 'BEAM_WIDTH', 10)
-                length_penalty = getattr(config, 'BEAM_SEARCH_LENGTH_PENALTY', 0.5)
-            except:
-                beam_width = 10
-                length_penalty = 0.5
         
         # Determine blank token ID from vocab
         blank_id = 0  # Default CTC blank ID
@@ -349,40 +331,31 @@ class Wav2Vec2PhonemeRecognizer:
         if hasattr(self.tokenizer, 'pad_token_id') and self.tokenizer.pad_token_id is not None:
             pad_token_id = self.tokenizer.pad_token_id
         
-        # Choose decoding method
-        if use_beam_search:
-            # Use beam search decoding
-            decoded_ids = self._ctc_beam_search(logits, beam_width, length_penalty, blank_id)
-            if not decoded_ids:
-                # Fallback to greedy if beam search failed
-                use_beam_search = False
+        # Use greedy decoding (argmax at each time step)
+        predicted_ids = torch.argmax(logits, dim=-1)
+        sequence = predicted_ids[0].cpu().tolist()
         
-        if not use_beam_search:
-            # Use greedy decoding
-            predicted_ids = torch.argmax(logits, dim=-1)
-            sequence = predicted_ids[0].cpu().tolist()
+        # CTC collapse: remove blanks and consecutive duplicates
+        decoded_ids = []
+        prev_id = None
+        id_to_token = {v: k for k, v in (self.vocab.items() if self.vocab else {})}
+        skip_tokens = {'|', '[PAD]', '<pad>', '<blank>', '[BLANK]', 'h#', 'spn', ''}
+        
+        for token_id in sequence:
+            token_name = id_to_token.get(token_id, '')
             
-            # CTC collapse: remove blanks and consecutive duplicates
-            decoded_ids = []
-            prev_id = None
-            id_to_token = {v: k for k, v in (self.vocab.items() if self.vocab else {})}
-            skip_tokens = {'|', '[PAD]', '<pad>', '<blank>', '[BLANK]', 'h#', 'spn', ''}
-            
-            for token_id in sequence:
-                token_name = id_to_token.get(token_id, '')
-                
-                # Skip blank tokens, PAD tokens, and special silence tokens
-                if (token_id == blank_id or 
-                    (pad_token_id is not None and token_id == pad_token_id) or
-                    token_name in skip_tokens):
-                    prev_id = None
-                    continue
-                # Skip consecutive duplicates (CTC collapse)
-                if token_id != prev_id:
-                    decoded_ids.append(token_id)
-                    prev_id = token_id
-                else:
-                    prev_id = None  # Reset to allow same token later
+            # Skip blank tokens, PAD tokens, and special silence tokens
+            if (token_id == blank_id or 
+                (pad_token_id is not None and token_id == pad_token_id) or
+                token_name in skip_tokens):
+                prev_id = None
+                continue
+            # Skip consecutive duplicates (CTC collapse)
+            if token_id != prev_id:
+                decoded_ids.append(token_id)
+                prev_id = token_id
+            else:
+                prev_id = None  # Reset to allow same token later
         
         # Convert IDs to tokens using vocab.json for proper IPA decoding
         # CRITICAL: Always use vocab.json, never use tokenizer.batch_decode() which returns letters!
@@ -407,88 +380,6 @@ class Wav2Vec2PhonemeRecognizer:
         
         return transcription
     
-    def _ctc_beam_search(
-        self,
-        logits: torch.Tensor,
-        beam_width: int = 10,
-        length_penalty: float = 0.5,
-        blank_id: int = 0
-    ) -> List[int]:
-        """
-        CTC beam search decoding for better accuracy.
-        
-        Args:
-            logits: Model logits (batch, time, vocab_size)
-            beam_width: Number of beams
-            length_penalty: Length penalty factor
-            blank_id: Blank token ID
-            
-        Returns:
-            List of decoded token IDs
-        """
-        # Convert logits to log-probabilities
-        log_probs = torch.log_softmax(logits, dim=-1)  # (batch, time, vocab_size)
-        sequence = log_probs[0].cpu()  # (time, vocab_size)
-        
-        # Initialize beams: (score, sequence, last_token)
-        beams = [(0.0, [], None)]
-        
-        for t in range(sequence.shape[0]):
-            time_step_log_probs = sequence[t]  # (vocab_size,)
-            
-            # Get top-k candidates for this time step
-            top_k_probs, top_k_ids = torch.topk(time_step_log_probs, min(beam_width * 2, sequence.shape[1]))
-            
-            # New beam dictionary: (sequence_tuple, last_token) -> (score, sequence, last_token)
-            beam_dict = {}
-            
-            for score, sequence_list, last_token in beams:
-                # Handle blank token (extends sequence without adding)
-                blank_score = score + time_step_log_probs[blank_id].item()
-                blank_key = (tuple(sequence_list), last_token)
-                if blank_key not in beam_dict or beam_dict[blank_key][0] < blank_score:
-                    beam_dict[blank_key] = (blank_score, sequence_list.copy(), last_token)
-                
-                # Handle non-blank tokens
-                for log_prob, token_id in zip(top_k_probs, top_k_ids):
-                    token_id = int(token_id.item())
-                    new_score = score + log_prob.item()
-                    
-                    # Skip blank tokens (already handled)
-                    if token_id == blank_id:
-                        continue
-                    
-                    # CTC rules:
-                    # 1. If same as last token, extend current beam without adding (CTC collapse)
-                    if token_id == last_token:
-                        same_key = (tuple(sequence_list), last_token)
-                        if same_key not in beam_dict or beam_dict[same_key][0] < new_score:
-                            beam_dict[same_key] = (new_score, sequence_list.copy(), last_token)
-                        continue
-                    
-                    # 2. Add new token
-                    new_sequence = sequence_list.copy()
-                    new_sequence.append(token_id)
-                    new_key = (tuple(new_sequence), token_id)
-                    if new_key not in beam_dict or beam_dict[new_key][0] < new_score:
-                        beam_dict[new_key] = (new_score, new_sequence, token_id)
-            
-            # Keep top beam_width beams
-            beams = list(beam_dict.values())
-            beams.sort(key=lambda x: x[0], reverse=True)
-            beams = beams[:beam_width]
-            
-            if not beams:
-                break
-        
-        # Apply length penalty and select best beam
-        if beams:
-            best_score, best_sequence, _ = max(beams, key=lambda x: x[0] + length_penalty * len(x[1]))
-            return best_sequence
-        
-        return []
-
-
 # Global instance
 _wav2vec2_phoneme_recognizer = None
 

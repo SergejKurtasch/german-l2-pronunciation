@@ -21,6 +21,9 @@ silero-vad>=4.0.0
 
 # ASR (Speech-to-Text)
 openai-whisper>=20231117
+# macOS native Speech framework (optional, for faster recognition on macOS)
+pyobjc-framework-Speech>=9.0; sys_platform == "darwin"
+pyobjc-framework-AVFoundation>=9.0; sys_platform == "darwin"
 
 # Metrics
 jiwer>=3.0.0
