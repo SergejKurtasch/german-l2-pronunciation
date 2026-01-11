@@ -1,0 +1,4 @@
+.cursor/
+*/.cache/
+*.log
+secrets.env
