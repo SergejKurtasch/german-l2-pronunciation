@@ -7,7 +7,10 @@
     "phoneme_preservation": "Do not merge different phonemes, even if articulatorily similar"
   },
   "phoneme_mapping": {
-    "g": "ɡ"
+    "g": "ɡ",
+    "ˑ": "ː",
+    "ˀ": "ʔ",
+    "ʧ": "tʃ"
   },
   "diacritics": {
     "̃": {
@@ -166,14 +169,13 @@
       "reason": "Not in model - will be removed from dictionaries"
     }
   },
-  "affricates_expansion": {
-    "t͡s": "t s",
-    "d͡ʒ": "d ʒ",
-    "t͜s": "t s",
-    "d͜ʒ": "d ʒ",
-    "pf": "p f",
-    "ts": "t s"
-  },
+  "invalid_patterns": [
+    "QNOU",
+    "QOU",
+    "[A-Z]{3,}",
+    "\\?[^ʔ]"
+  ],
+  "invalid_pattern_reason": "DSL dictionary contains OCR errors and corrupted entries",
   "phonemes_preserve_distinctions": {
     "vowels": {
       "a": "a (U+0061)",
@@ -200,6 +202,7 @@
     "r_variants": {
       "r": "r (U+0072) - alveolar trill",
       "ɾ": "ɾ (U+027E) - alveolar tap",
+      "ʀ": "ʀ (U+0280) - uvular trill",
       "ʁ": "ʁ (U+0281) - uvular fricative"
     }
   },
@@ -235,13 +238,6 @@
     {
       "char": "͜",
       "unicode": "U+035C",
-      "in_dsl": true,
-      "in_mfa": false,
-      "reason": "Not in model vocabulary - will be removed during normalization"
-    },
-    {
-      "char": "ʀ",
-      "unicode": "U+0280",
       "in_dsl": true,
       "in_mfa": false,
       "reason": "Not in model vocabulary - will be removed during normalization"
@@ -422,11 +418,32 @@
       "reason": "Not in model vocabulary - will be removed during normalization"
     },
     {
+      "char": "ʔ",
+      "unicode": "U+0294",
+      "in_dsl": true,
+      "in_mfa": true,
+      "reason": "Model cannot recognize glottal stop - removing from expected phonemes to match model capabilities"
+    },
+    {
       "char": "Q",
       "unicode": "U+0051",
       "in_dsl": true,
       "in_mfa": false,
       "reason": "Not in model vocabulary - will be removed during normalization"
+    },
+    {
+      "char": "​",
+      "unicode": "U+200B",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Invisible character (zero-width space) - will be removed during normalization"
+    },
+    {
+      "char": "⁠",
+      "unicode": "U+2060",
+      "in_dsl": true,
+      "in_mfa": false,
+      "reason": "Invisible character (word joiner) - will be removed during normalization"
     }
   ],
   "chars_only_in_model": [
@@ -586,12 +603,13 @@
     "ᵻ"
   ],
   "statistics": {
-    "phoneme_mappings": 1,
+    "phoneme_mappings": 4,
     "diacritics_keep": 6,
     "diacritics_remove": 6,
     "suprasegmentals_keep": 1,
     "suprasegmentals_remove": 4,
-    "chars_to_remove_count": 31,
+    "invalid_patterns_count": 4,
+    "chars_to_remove_count": 33,
     "chars_only_in_model_count": 46,
     "model_inventory_size": 106
   }
