@@ -54,7 +54,13 @@ CONSONANT_FEATURES = {
     
     # Liquids
     'l': {'type': 'consonant', 'manner': 'lateral', 'place': 'alveolar', 'voiced': True},
+    
+    # R-sounds (various German and loanword R variants)
     'ʁ': {'type': 'consonant', 'manner': 'approximant', 'place': 'uvular', 'voiced': True},
+    'ʀ': {'type': 'consonant', 'manner': 'trill', 'place': 'uvular', 'voiced': True},
+    'r': {'type': 'consonant', 'manner': 'trill', 'place': 'alveolar', 'voiced': True},
+    'ɾ': {'type': 'consonant', 'manner': 'tap', 'place': 'alveolar', 'voiced': True},
+    'ɹ': {'type': 'consonant', 'manner': 'approximant', 'place': 'alveolar', 'voiced': True},
     
     # Glides/Approximants
     'j': {'type': 'consonant', 'manner': 'approximant', 'place': 'palatal', 'voiced': True},
@@ -284,6 +290,33 @@ def get_phoneme_similarity(
         # Both are boundaries (already handled above with ==)
         # One is boundary, other is not: strong penalty
         return -2.0
+    
+    # Special rules for frequent confusions (BEFORE normalization)
+    # These pairs are phonetically close and should have increased similarity
+    # Note: Check BEFORE normalization to handle ARPABET 'r' correctly
+    HIGH_SIMILARITY_PAIRS = {
+        ('ɐ', 'ɾ'): 0.7,  # Central vowel and alveolar tap - phonetically close
+        ('eː', 'ɛ'): 0.8,  # Same vowel, different length
+        ('ɐ', 'ɜ'): 0.75,  # Both central vowels
+        ('ʁ', 'ɾ'): 0.65,  # Both R-sounds, different places of articulation
+        ('ʁ', 'ʀ'): 0.90,  # Both uvular R-sounds, different manner
+        ('ɾ', 'r'): 0.85,  # Both alveolar R-sounds, different manner
+        ('r', 'ɹ'): 0.80,  # Alveolar trill and approximant
+    }
+    
+    # Check in both directions
+    pair_key = (phoneme1, phoneme2)
+    reverse_pair_key = (phoneme2, phoneme1)
+    
+    if pair_key in HIGH_SIMILARITY_PAIRS:
+        return HIGH_SIMILARITY_PAIRS[pair_key]
+    if reverse_pair_key in HIGH_SIMILARITY_PAIRS:
+        return HIGH_SIMILARITY_PAIRS[reverse_pair_key]
+    
+    # Special rules for affricates vs fricatives
+    # s → ts is often an artifact, but they are phonetically different
+    if (phoneme1 == 's' and phoneme2 == 'ts') or (phoneme1 == 'ts' and phoneme2 == 's'):
+        return 0.3  # Low similarity, as these are different types of sounds
     
     # Convert ARPABET to IPA if needed
     phoneme1 = _normalize_phoneme(phoneme1)

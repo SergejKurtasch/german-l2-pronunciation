@@ -73,7 +73,7 @@ SIMILARITY_DEFAULT_MISMATCH = -1.0  # Score for completely different phoneme cla
 # Feature weights for similarity calculation
 # These weights determine how much each phonetic feature contributes to similarity
 FEATURE_WEIGHT_VOICING = 0.25  # Weight for voicing feature (voiced vs voiceless)
-FEATURE_WEIGHT_PLACE = 0.35  # Weight for place of articulation (bilabial, alveolar, etc.)
+FEATURE_WEIGHT_PLACE = 0.40  # Weight for place of articulation (bilabial, alveolar, etc.)
 FEATURE_WEIGHT_MANNER = 0.30  # Weight for manner of articulation (plosive, fricative, etc.)
 FEATURE_WEIGHT_LENGTH = 0.10  # Weight for vowel length (short vs long)
 FEATURE_WEIGHT_HEIGHT = 0.30  # Weight for vowel height (open, mid, close)

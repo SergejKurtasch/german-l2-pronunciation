@@ -12,6 +12,8 @@ from pathlib import Path
 import tempfile
 import sys
 import threading
+import time
+import json
 from typing import List, Dict, Optional, Tuple
 
 # Add project root to path
@@ -34,7 +36,8 @@ from modules.visualization import (
     create_colored_text,
     create_detailed_report,
     create_simple_phoneme_comparison,
-    create_raw_phonemes_display
+    create_raw_phonemes_display,
+    create_validation_comparison
 )
 from modules.phoneme_validator import get_optional_validator
 from modules.speech_to_text import get_speech_recognizer
@@ -789,48 +792,178 @@ def process_pronunciation(
                 f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:process_pronunciation:after_diagnostic","message":"Diagnostic analysis completed","data":{"results_count":len(diagnostic_results)},"timestamp":int(time.time()*1000),"elapsed_ms":int(diagnostic_elapsed)})+'\n')
             # #endregion
             
+            # Store aligned_pairs before validation for comparison
+            aligned_pairs_before_validation = [(exp, rec) for exp, rec in aligned_pairs] if enable_validation else None
+            diagnostic_results_before_validation = [dict(dr) for dr in diagnostic_results] if enable_validation else None
+            
             # Stage 9: Optional Validation
             validation_start = time.time()
+            validation_count = 0
+            validation_corrected_count = 0
             if enable_validation and optional_validator:
-                # For each error, try to validate with trained model
-                validation_count = 0
-                for i, result in enumerate(diagnostic_results):
-                    if not result.get('is_correct', False) and not result.get('is_missing', False):
-                        expected_ph = result.get('expected', '')
-                        recognized_ph = result.get('recognized', '')
+                # For each mismatch in aligned_pairs, try to validate with trained model
+                print(f"Optional validation enabled - checking {len(aligned_pairs)} aligned pairs")
+                
+                # Build index mapping from recognized phoneme to segments
+                # This helps when multiple segments have the same phoneme
+                segment_index = 0
+                
+                for i, (expected_ph, recognized_ph) in enumerate(aligned_pairs):
+                    # Skip if match, missing (None), or word boundary
+                    if expected_ph == recognized_ph or expected_ph is None or recognized_ph is None:
+                        # Advance segment index if recognized phoneme exists
+                        if recognized_ph is not None and recognized_ph != '||':
+                            segment_index += 1
+                        continue
+                    
+                    # Skip word boundaries
+                    if expected_ph == '||' or recognized_ph == '||':
+                        continue
+                    
+                    # Check if trained model exists for this phoneme pair
+                    if optional_validator.has_trained_model(expected_ph, recognized_ph):
+                        # Get proper phoneme pair name
+                        phoneme_pair = optional_validator.get_phoneme_pair(expected_ph, recognized_ph)
                         
-                        if optional_validator.has_trained_model(expected_ph, recognized_ph):
-                            # Find corresponding segment
-                            segment = None
-                            for seg in recognized_segments:
-                                if seg.label == recognized_ph:
-                                    segment = seg
-                                    break
+                        # #region agent log
+                        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                            f.write(json.dumps({
+                                'sessionId': 'debug-session',
+                                'runId': 'run1',
+                                'hypothesisId': 'H',
+                                'location': 'app.py:819',
+                                'message': 'Phoneme pair check',
+                                'data': {
+                                    'expected_ph': expected_ph,
+                                    'recognized_ph': recognized_ph,
+                                    'phoneme_pair': phoneme_pair,
+                                    'has_model': True
+                                },
+                                'timestamp': int(time.time() * 1000)
+                            }) + '\n')
+                        # #endregion
+                        
+                        if phoneme_pair is None:
+                            print(f"Warning: Could not get phoneme pair for {expected_ph} -> {recognized_ph}")
+                            segment_index += 1
+                            continue
+                        
+                        # Find corresponding segment using index
+                        segment = None
+                        if segment_index < len(recognized_segments):
+                            segment = recognized_segments[segment_index]
+                        
+                        if segment:
+                            # Extract audio segment
+                            start_sample = int(segment.start_time * config.SAMPLE_RATE)
+                            end_sample = int(segment.end_time * config.SAMPLE_RATE)
+                            audio_segment = waveform[start_sample:end_sample]
                             
-                            if segment:
-                                # Extract audio segment
-                                start_sample = int(segment.start_time * config.SAMPLE_RATE)
-                                end_sample = int(segment.end_time * config.SAMPLE_RATE)
-                                audio_segment = waveform[start_sample:end_sample]
+                            # #region agent log
+                            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                                f.write(json.dumps({
+                                    'sessionId': 'debug-session',
+                                    'runId': 'run1',
+                                    'hypothesisId': 'A',
+                                    'location': 'app.py:834',
+                                    'message': 'Audio segment before validation',
+                                    'data': {
+                                        'expected_ph': expected_ph,
+                                        'recognized_ph': recognized_ph,
+                                        'phoneme_pair': phoneme_pair,
+                                        'segment_start_time': segment.start_time,
+                                        'segment_end_time': segment.end_time,
+                                        'start_sample': start_sample,
+                                        'end_sample': end_sample,
+                                        'audio_segment_length': len(audio_segment),
+                                        'audio_segment_shape': list(audio_segment.shape) if hasattr(audio_segment, 'shape') else None,
+                                        'audio_segment_dtype': str(audio_segment.dtype) if hasattr(audio_segment, 'dtype') else None,
+                                        'sample_rate': config.SAMPLE_RATE,
+                                        'waveform_length': len(waveform)
+                                    },
+                                    'timestamp': int(time.time() * 1000)
+                                }) + '\n')
+                            # #endregion
+                            
+                            # Validate
+                            validation_result = optional_validator.validate_phoneme_segment(
+                                audio_segment,
+                                phoneme_pair=phoneme_pair,
+                                expected_phoneme=expected_ph,
+                                suspected_phoneme=recognized_ph,
+                                sr=config.SAMPLE_RATE
+                            )
+                            
+                            # #region agent log
+                            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                                f.write(json.dumps({
+                                    'sessionId': 'debug-session',
+                                    'runId': 'run1',
+                                    'hypothesisId': 'B',
+                                    'location': 'app.py:860',
+                                    'message': 'Validation result received',
+                                    'data': {
+                                        'expected_ph': expected_ph,
+                                        'recognized_ph': recognized_ph,
+                                        'phoneme_pair': phoneme_pair,
+                                        'validation_result_keys': list(validation_result.keys()),
+                                        'is_correct': validation_result.get('is_correct'),
+                                        'confidence': validation_result.get('confidence'),
+                                        'predicted_phoneme': validation_result.get('predicted_phoneme'),
+                                        'error': validation_result.get('error'),
+                                        'has_error': 'error' in validation_result
+                                    },
+                                    'timestamp': int(time.time() * 1000)
+                                }) + '\n')
+                            # #endregion
+                            
+                            validation_count += 1
+                            
+                            # Check if validation says it's correct with high confidence (>70%)
+                            is_correct = validation_result.get('is_correct', False)
+                            confidence = validation_result.get('confidence', 0.0)
+                            
+                            if is_correct and confidence > 0.7:
+                                print(f"Validation: {expected_ph} -> {recognized_ph} is CORRECT (confidence: {confidence:.2%})")
                                 
-                                # Validate
-                                validation_result = optional_validator.validate_phoneme_segment(
-                                    audio_segment,
-                                    phoneme_pair=f"{expected_ph}-{recognized_ph}",
-                                    expected_phoneme=expected_ph,
-                                    suspected_phoneme=recognized_ph,
-                                    sr=config.SAMPLE_RATE
-                                )
+                                # Update aligned_pairs to mark as correct (for green color)
+                                # Change recognized phoneme to match expected
+                                aligned_pairs[i] = (expected_ph, expected_ph)
                                 
-                                # Update result
-                                result['validation_result'] = validation_result
-                                if validation_result.get('is_correct'):
-                                    result['is_correct'] = True  # Override if validation says correct
-                                validation_count += 1
+                                # Update diagnostic_results if index matches
+                                if i < len(diagnostic_results):
+                                    diagnostic_results[i]['is_correct'] = True
+                                    diagnostic_results[i]['validation_result'] = validation_result
+                                    diagnostic_results[i]['validation_confidence'] = confidence
+                                    diagnostic_results[i]['validation_override'] = True
+                                
+                                validation_corrected_count += 1
+                            else:
+                                # Store validation result but don't override
+                                if i < len(diagnostic_results):
+                                    diagnostic_results[i]['validation_result'] = validation_result
+                                    diagnostic_results[i]['validation_confidence'] = confidence
+                                
+                                if is_correct:
+                                    print(f"Validation: {expected_ph} -> {recognized_ph} is correct but low confidence ({confidence:.2%})")
+                                else:
+                                    print(f"Validation: {expected_ph} -> {recognized_ph} is INCORRECT (confidence: {confidence:.2%})")
+                        else:
+                            print(f"Warning: No segment found for {recognized_ph} at index {segment_index}")
+                        
+                        # Advance segment index
+                        segment_index += 1
+                    else:
+                        # No model for this pair, advance segment index
+                        if recognized_ph is not None and recognized_ph != '||':
+                            segment_index += 1
+                
+                print(f"Validation complete: {validation_count} phonemes validated, {validation_corrected_count} corrected")
+            
             validation_elapsed = (time.time() - validation_start) * 1000
             # #region agent log
             with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
-                f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:process_pronunciation:after_validation","message":"Optional validation completed","data":{"enabled":enable_validation and optional_validator is not None,"validation_count":validation_count if enable_validation and optional_validator else 0},"timestamp":int(time.time()*1000),"elapsed_ms":int(validation_elapsed)})+'\n')
+                f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"app.py:process_pronunciation:after_validation","message":"Optional validation completed","data":{"enabled":enable_validation and optional_validator is not None,"validation_count":validation_count,"validation_corrected_count":validation_corrected_count},"timestamp":int(time.time()*1000),"elapsed_ms":int(validation_elapsed)})+'\n')
             # #endregion
             
             # Stage 10: Visualization
@@ -931,12 +1064,50 @@ def process_pronunciation(
                     expected_phonemes_dict_for_coloring = expected_phonemes_dict
             
             viz_colored_start = time.time()
-            colored_text_html = create_colored_text(
+            
+            # Create colored text for after validation (current state)
+            colored_text_html_after = create_colored_text(
                 text_for_colored, 
                 aligned_pairs_dict,
                 expected_phonemes_dict=expected_phonemes_dict_for_coloring,
                 aligned_pairs_tuples=aligned_pairs
             )
+            
+            # If validation is enabled, also create colored text for before validation
+            if enable_validation and aligned_pairs_before_validation is not None:
+                # Convert aligned_pairs_before_validation to dict format
+                aligned_pairs_dict_before = []
+                for i, (exp, rec) in enumerate(aligned_pairs_before_validation):
+                    if i < len(diagnostic_results_before_validation):
+                        aligned_pairs_dict_before.append(diagnostic_results_before_validation[i])
+                    else:
+                        aligned_pairs_dict_before.append({
+                            'expected': exp,
+                            'recognized': rec,
+                            'is_correct': exp == rec,
+                            'is_missing': exp is not None and rec is None,
+                            'is_extra': exp is None and rec is not None
+                        })
+                
+                # Create colored text for before validation
+                colored_text_html_before = create_colored_text(
+                    text_for_colored,
+                    aligned_pairs_dict_before,
+                    expected_phonemes_dict=expected_phonemes_dict_for_coloring,
+                    aligned_pairs_tuples=aligned_pairs_before_validation
+                )
+                
+                # Create comparison view
+                colored_text_html = create_validation_comparison(
+                    text_for_colored,
+                    colored_text_html_before,
+                    colored_text_html_after,
+                    enable_validation=True
+                )
+            else:
+                # No validation, just use the after version (which is the same as before)
+                colored_text_html = colored_text_html_after
+            
             viz_colored_elapsed = (time.time() - viz_colored_start) * 1000
             # #region agent log
             with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
@@ -985,6 +1156,16 @@ def process_pronunciation(
                     <li><strong>PER Details:</strong> {per_result['substitutions']} substitutions, {per_result['deletions']} deletions, {per_result['insertions']} insertions</li>
                 """
             
+            validation_info = ""
+            if enable_validation and optional_validator:
+                validation_info = f"""
+                    <li><strong>Optional validation:</strong> Enabled</li>
+                    <li><strong>Validated phonemes:</strong> {validation_count}</li>
+                    <li><strong>Corrected by validation:</strong> {validation_corrected_count} (confidence > 70%)</li>
+                """
+            else:
+                validation_info = "<li><strong>Optional validation:</strong> Disabled</li>"
+            
             technical_html = f"""
             <div style='padding: 10px; background: #f9f9f9; border-radius: 5px;'>
                 <h4>Technical Information</h4>
@@ -999,7 +1180,7 @@ def process_pronunciation(
                     <li><strong>Alignment score:</strong> {alignment_score:.2f}</li>
                     {wer_info}
                     {per_info}
-                    <li><strong>Optional validation:</strong> {'Enabled' if enable_validation else 'Disabled'}</li>
+                    {validation_info}
                 </ul>
             </div>
             """

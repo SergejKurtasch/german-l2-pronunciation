@@ -363,7 +363,7 @@ def create_colored_text(
                             char_pos_in_text = token_start + i
                             char_to_color[char_pos_in_text] = collapsed_ph_to_color[first_ph_idx]
     
-    # Step 6: Generate HTML with colored text
+    # Step 6: Generate HTML with colored text (without bold by default)
     html = "<div style='font-size: 18px; line-height: 1.8;'>"
     
     for i, char in enumerate(text):
@@ -372,7 +372,7 @@ def create_colored_text(
             html += char
         elif i in char_to_color:
             color = char_to_color[i]
-            html += f"<span style='color: {color}; font-weight: bold;'>{char}</span>"
+            html += f"<span style='color: {color};'>{char}</span>"
         else:
             # Character not mapped to any phoneme, leave uncolored
             html += char
@@ -992,6 +992,204 @@ def create_quadruple_model_comparison(
     html += f"<div style='padding: 10px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;'>"
     html += f"<p style='margin: 0; font-weight: bold; color: #2c3e50;'>{model3_name}:</p>"
     html += f"<p style='margin: 5px 0 0 0; color: #2c3e50;'>{model3_str}</p>"
+    html += "</div>"
+    
+    html += "</div>"
+    
+    return html
+
+
+def _extract_char_colors(html_content: str, text: str) -> Dict[int, str]:
+    """
+    Extract color for each character position from HTML.
+    
+    Args:
+        html_content: HTML string with colored text
+        text: Original text string
+        
+    Returns:
+        Dictionary mapping character index to color (or None if no color)
+    """
+    import re
+    char_colors = {}
+    
+    # Extract the inner content (remove outer div)
+    inner_match = re.search(r'<div[^>]*>(.*)</div>', html_content, re.DOTALL)
+    if not inner_match:
+        return char_colors
+    
+    inner_html = inner_match.group(1)
+    
+    # Build a list of characters with their colors by parsing HTML sequentially
+    text_pos = 0
+    i = 0
+    
+    while i < len(inner_html) and text_pos < len(text):
+        # Check for span tag
+        span_match = re.match(r"<span[^>]*style=['\"]([^'\"]*)['\"][^>]*>(.)</span>", inner_html[i:], re.DOTALL)
+        
+        if span_match:
+            style = span_match.group(1)
+            char = span_match.group(2)
+            
+            # Extract color
+            color_match = re.search(r'color:\s*([^;]+)', style)
+            if color_match:
+                color = color_match.group(1).strip()
+                if text_pos < len(text) and text[text_pos] == char:
+                    char_colors[text_pos] = color
+                    text_pos += 1
+            
+            i += len(span_match.group(0))
+        else:
+            # Regular character (not in span, no color)
+            char = inner_html[i]
+            if text_pos < len(text) and text[text_pos] == char:
+                # Character without color
+                text_pos += 1
+            i += 1
+    
+    return char_colors
+
+
+def _apply_bold_to_changed_chars(html_content: str, text: str, changed_positions: set) -> str:
+    """
+    Apply bold font-weight to characters at changed positions.
+    
+    Args:
+        html_content: HTML string with colored text
+        text: Original text string
+        changed_positions: Set of character indices that changed color
+        
+    Returns:
+        Modified HTML with bold applied to changed characters
+    """
+    import re
+    
+    if not changed_positions:
+        return html_content
+    
+    # Extract the inner content
+    inner_match = re.search(r'(<div[^>]*>)(.*)(</div>)', html_content, re.DOTALL)
+    if not inner_match:
+        return html_content
+    
+    outer_start = inner_match.group(1)
+    inner_html = inner_match.group(2)
+    outer_end = inner_match.group(3)
+    
+    # Process HTML and add bold to changed characters
+    text_pos = 0
+    result_html = ""
+    i = 0
+    
+    while i < len(inner_html) and text_pos < len(text):
+        # Check for span tag
+        span_match = re.match(r"(<span[^>]*style=['\"])([^'\"]*)(['\"][^>]*>)(.)(</span>)", inner_html[i:], re.DOTALL)
+        
+        if span_match:
+            open_tag = span_match.group(1)
+            style = span_match.group(2)
+            quote_style = span_match.group(3)
+            char = span_match.group(4)
+            close_tag = span_match.group(5)
+            
+            # Check if this character position changed
+            if text_pos in changed_positions:
+                # Add or update bold in style
+                if 'font-weight' not in style:
+                    style = style.rstrip('; ') + '; font-weight: bold'
+                else:
+                    style = re.sub(r'font-weight:\s*[^;]+', 'font-weight: bold', style)
+            
+            # Rebuild span
+            result_html += open_tag + style + quote_style + char + close_tag
+            text_pos += 1
+            i += len(span_match.group(0))
+        else:
+            # Regular character
+            char = inner_html[i]
+            if text_pos < len(text) and text[text_pos] == char:
+                if text_pos in changed_positions:
+                    # Character without span but changed - wrap in span with bold
+                    result_html += f"<span style='font-weight: bold;'>{char}</span>"
+                else:
+                    result_html += char
+                text_pos += 1
+            else:
+                result_html += char
+            i += 1
+    
+    # Add remaining HTML
+    result_html += inner_html[i:]
+    
+    # Rebuild outer div
+    return outer_start + result_html + outer_end
+
+
+def create_validation_comparison(
+    text: str,
+    before_validation_html: str,
+    after_validation_html: str,
+    enable_validation: bool
+) -> str:
+    """
+    Create comparison view showing sentence before and after optional validation.
+    Makes changed characters bold in both versions for easier comparison.
+    
+    Args:
+        text: Original sentence text
+        before_validation_html: HTML with colored text before validation (after Hagen-Faes model)
+        after_validation_html: HTML with colored text after validation (if enabled)
+        enable_validation: Whether validation was enabled
+        
+    Returns:
+        HTML string with both versions side by side for comparison
+    """
+    if not enable_validation:
+        # If validation is disabled, just return the after validation version (which is the same)
+        return after_validation_html
+    
+    # Extract colors for each character position
+    before_colors = _extract_char_colors(before_validation_html, text)
+    after_colors = _extract_char_colors(after_validation_html, text)
+    
+    # Find positions where color changed
+    changed_positions = set()
+    for pos in range(len(text)):
+        before_color = before_colors.get(pos)
+        after_color = after_colors.get(pos)
+        if before_color != after_color:
+            changed_positions.add(pos)
+    
+    # Apply bold to changed characters in both versions for easier comparison
+    before_html_with_bold = _apply_bold_to_changed_chars(before_validation_html, text, changed_positions)
+    after_html_with_bold = _apply_bold_to_changed_chars(after_validation_html, text, changed_positions)
+    
+    html = "<div style='padding: 15px; background: #f8f9fa; border-radius: 5px;'>"
+    html += "<h5 style='color: #2c3e50; margin-top: 0; margin-bottom: 15px;'>Sentence Comparison: Before and After Validation</h5>"
+    
+    # Before validation version (after Hagen-Faes model)
+    html += "<div style='margin-bottom: 20px; padding: 15px; background: #e8f4f8; border-left: 4px solid #3498db; border-radius: 4px;'>"
+    html += "<p style='margin: 0 0 10px 0; font-weight: bold; color: #2c3e50; font-size: 14px;'>Version 1: After Hagen-Faes Model (Before Validation)</p>"
+    html += before_html_with_bold
+    html += "</div>"
+    
+    # After validation version (with bold for changed characters)
+    html += "<div style='padding: 15px; background: #f0f8e8; border-left: 4px solid #27ae60; border-radius: 4px;'>"
+    html += "<p style='margin: 0 0 10px 0; font-weight: bold; color: #2c3e50; font-size: 14px;'>Version 2: After Optional Validation (Double Check)</p>"
+    html += after_html_with_bold
+    html += "</div>"
+    
+    # Add note about differences
+    changed_count = len(changed_positions)
+    html += "<div style='margin-top: 15px; padding: 10px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;'>"
+    html += f"<p style='margin: 0; color: #856404; font-size: 12px;'><strong>Note:</strong> "
+    if changed_count > 0:
+        html += f"<strong>{changed_count} character(s)</strong> changed color after validation (shown in <strong>bold</strong> in both versions for easy comparison). "
+    else:
+        html += "No color changes detected after validation. "
+    html += "Green indicates correct phonemes, red indicates mismatches, orange indicates missing phonemes, and blue indicates extra phonemes.</p>"
     html += "</div>"
     
     html += "</div>"
