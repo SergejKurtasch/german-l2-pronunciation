@@ -315,6 +315,11 @@ class ForcedAligner:
             List of PhonemeSegment objects with accurate timing information
         """
         try:
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"forced_alignment.py:_ctc_alignment:entry","message":"CTC alignment started","data":{"labels_count":len(labels),"token_ids_count":len(token_ids),"labels_sample":labels[:10] if len(labels) > 10 else labels,"token_ids_sample":token_ids[:10] if len(token_ids) > 10 else token_ids},"timestamp":int(time.time()*1000)})+'\n')
+            # #endregion
+            
             # Get best path using greedy CTC decode
             # emissions shape: (batch=1, time, vocab_size)
             emissions_np = emissions[0].cpu().numpy()  # (time, vocab_size)
@@ -323,13 +328,33 @@ class ForcedAligner:
             # Get most likely token at each time step
             best_path = np.argmax(emissions_np, axis=1)  # (time,)
             
+            # #region agent log
+            unique_predicted = np.unique(best_path).tolist()
+            predicted_counts = {int(k): int(v) for k, v in zip(*np.unique(best_path, return_counts=True))}
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"B","location":"forced_alignment.py:_ctc_alignment:after_best_path","message":"Best path computed","data":{"num_frames":int(num_frames),"unique_predicted_count":len(unique_predicted),"unique_predicted":unique_predicted[:20],"predicted_counts_sample":dict(list(predicted_counts.items())[:10]),"expected_token_ids":token_ids},"timestamp":int(time.time()*1000)})+'\n')
+            # #endregion
+            
             # Collapse repeated tokens and remove blanks (assuming blank_id=0 or '|')
             blank_id = self.blank_id
+            
+            # Check which expected tokens are in best_path
+            # #region agent log
+            expected_in_path = [tid for tid in token_ids if tid in best_path]
+            missing_tokens = [tid for tid in token_ids if tid not in best_path]
+            missing_labels = [labels[i] for i, tid in enumerate(token_ids) if tid not in best_path]
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"C","location":"forced_alignment.py:_ctc_alignment:token_check","message":"Token presence check","data":{"expected_in_path_count":len(expected_in_path),"missing_tokens_count":len(missing_tokens),"missing_tokens":missing_tokens[:10],"missing_labels":missing_labels[:10]},"timestamp":int(time.time()*1000)})+'\n')
+            # #endregion
             
             # Find regions for each target phoneme
             segments = []
             target_idx = 0
             current_start = None
+            
+            # #region agent log
+            alignment_trace = []
+            # #endregion
             
             for frame_idx in range(num_frames):
                 pred_id = best_path[frame_idx]
@@ -339,6 +364,9 @@ class ForcedAligner:
                     if current_start is not None and target_idx < len(token_ids):
                         # End current segment
                         segments.append((target_idx, current_start, frame_idx - 1))
+                        # #region agent log
+                        alignment_trace.append({"frame":int(frame_idx),"action":"end_segment_blank","target_idx":target_idx,"phoneme":labels[target_idx] if target_idx < len(labels) else None})
+                        # #endregion
                         target_idx += 1
                         current_start = None
                     continue
@@ -347,19 +375,41 @@ class ForcedAligner:
                 if target_idx < len(token_ids) and pred_id == token_ids[target_idx]:
                     if current_start is None:
                         current_start = frame_idx
+                        # #region agent log
+                        alignment_trace.append({"frame":int(frame_idx),"action":"start_match","target_idx":target_idx,"phoneme":labels[target_idx],"pred_id":int(pred_id)})
+                        # #endregion
                 # If we encounter a different token, end current segment
                 elif current_start is not None:
                     segments.append((target_idx, current_start, frame_idx - 1))
+                    # #region agent log
+                    alignment_trace.append({"frame":int(frame_idx),"action":"end_segment_mismatch","target_idx":target_idx,"phoneme":labels[target_idx] if target_idx < len(labels) else None,"pred_id":int(pred_id),"expected_id":token_ids[target_idx] if target_idx < len(token_ids) else None})
+                    # #endregion
                     target_idx += 1
                     current_start = None
                     
                     # Check if new token matches next target
                     if target_idx < len(token_ids) and pred_id == token_ids[target_idx]:
                         current_start = frame_idx
+                        # #region agent log
+                        alignment_trace.append({"frame":int(frame_idx),"action":"start_match_after_mismatch","target_idx":target_idx,"phoneme":labels[target_idx],"pred_id":int(pred_id)})
+                        # #endregion
+                else:
+                    # #region agent log
+                    if target_idx < len(token_ids):
+                        alignment_trace.append({"frame":int(frame_idx),"action":"no_match","target_idx":target_idx,"phoneme":labels[target_idx],"pred_id":int(pred_id),"expected_id":token_ids[target_idx]})
+                    # #endregion
             
             # Close last segment if needed
             if current_start is not None and target_idx < len(token_ids):
                 segments.append((target_idx, current_start, num_frames - 1))
+                # #region agent log
+                alignment_trace.append({"frame":int(num_frames),"action":"close_last","target_idx":target_idx,"phoneme":labels[target_idx]})
+                # #endregion
+            
+            # #region agent log
+            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"forced_alignment.py:_ctc_alignment:after_loop","message":"Alignment loop completed","data":{"segments_found":len(segments),"expected_count":len(labels),"target_idx_final":target_idx,"alignment_trace_sample":alignment_trace[-20:] if len(alignment_trace) > 20 else alignment_trace},"timestamp":int(time.time()*1000)})+'\n')
+            # #endregion
             
             # Calculate frame duration
             num_samples = waveform.shape[1]
@@ -391,6 +441,12 @@ class ForcedAligner:
             
             # If we didn't find all phonemes, use fallback for missing ones
             if len(result_segments) < len(labels):
+                # #region agent log
+                found_phonemes = [s.label for s in result_segments]
+                missing_phonemes = [l for l in labels if l not in found_phonemes]
+                with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                    f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"forced_alignment.py:_ctc_alignment:before_hybrid","message":"Not all phonemes found","data":{"found_count":len(result_segments),"expected_count":len(labels),"found_phonemes":found_phonemes[:20],"missing_phonemes":missing_phonemes[:20],"missing_count":len(missing_phonemes)},"timestamp":int(time.time()*1000)})+'\n')
+                # #endregion
                 print(f"Warning: CTC alignment found only {len(result_segments)}/{len(labels)} phonemes, using hybrid approach")
                 return self._hybrid_alignment(labels, result_segments, emissions, dictionary, sample_rate, waveform)
             

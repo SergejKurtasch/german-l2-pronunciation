@@ -672,8 +672,14 @@ def process_pronunciation(
             recognized_segments = []
             alignment_method = "CTC"
             
-            # Use MFA alignment only when validation is enabled (MFA provides better accuracy for validation)
-            use_mfa = enable_validation and mfa_aligner is not None and text and text.strip()
+            # Use MFA alignment only when:
+            # 1. MFA_ENABLED = True in config (controls both loading and usage)
+            # 2. Validation is enabled (MFA provides better accuracy for validation)
+            # 3. MFA aligner is available and text is provided
+            use_mfa = (config.MFA_ENABLED and 
+                      enable_validation and 
+                      mfa_aligner is not None and 
+                      text and text.strip())
             
             # Choose alignment method: MFA or CTC
             if use_mfa:
@@ -869,11 +875,11 @@ def process_pronunciation(
                             )                            
                             validation_count += 1
                             
-                            # Check if validation says it's correct with high confidence (>70%)
+                            # Check if validation says it's correct with high confidence
                             is_correct = validation_result.get('is_correct', False)
                             confidence = validation_result.get('confidence', 0.0)
                             
-                            if is_correct and confidence > 0.7:
+                            if is_correct and confidence > config.VALIDATION_CONFIDENCE_THRESHOLD:
                                 print(f"Validation: {expected_ph} -> {recognized_ph} is CORRECT (confidence: {confidence:.2%})")
                                 
                                 # Update aligned_pairs to mark as correct (for green color)
@@ -1056,7 +1062,7 @@ def process_pronunciation(
                 validation_info = f"""
                     <li><strong>Optional validation:</strong> Enabled</li>
                     <li><strong>Validated phonemes:</strong> {validation_count}</li>
-                    <li><strong>Corrected by validation:</strong> {validation_corrected_count} (confidence > 70%)</li>
+                    <li><strong>Corrected by validation:</strong> {validation_corrected_count} (confidence > {config.VALIDATION_CONFIDENCE_THRESHOLD:.0%})</li>
                 """
             else:
                 validation_info = "<li><strong>Optional validation:</strong> Disabled</li>"

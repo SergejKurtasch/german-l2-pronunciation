@@ -10,6 +10,7 @@ import uuid
 import hashlib
 import pickle
 import os
+import threading
 from pathlib import Path
 from typing import List, Optional
 from dataclasses import dataclass
@@ -68,6 +69,10 @@ class MFAAligner:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.cache_file = self.cache_dir / "mfa_cache.pkl"
         self.cache = self._load_cache()
+        
+        # Thread lock for MFA subprocess calls (prevents race conditions when multiple threads
+        # try to unpack MFA models simultaneously)
+        self._mfa_lock = threading.Lock()
         
         # Check dependencies
         if not HAS_TEXTGRID:
@@ -257,56 +262,123 @@ class MFAAligner:
             with open(lab_file, 'w', encoding='utf-8') as f:
                 f.write(text.strip())
             
-            # Run MFA alignment
+            # Run MFA alignment (synchronized to prevent race conditions)
             mfa_start = time.time()
             
-            # Use direct MFA binary (much faster than conda run, like in notebook)
-            if self.mfa_bin and Path(self.mfa_bin).exists():
-                # Direct execution - avoids conda run overhead
-                cmd = [
-                    self.mfa_bin, "align",
-                    str(temp_corpus),
-                    self.config.mfa_dict,
-                    self.config.mfa_model,
-                    str(temp_output),
-                    "--clean",
-                    "--overwrite",
-                    "--num_jobs", "2"  # Use 2 jobs even for single file (helps with model loading)
-                ]
-                # Set environment to use conda environment's Python and libraries
-                env = os.environ.copy()
-                conda_env_path = Path(self.mfa_bin).parent.parent
-                env_path = str(conda_env_path / "bin")
-                if "PATH" in env:
-                    env["PATH"] = f"{env_path}:{env['PATH']}"
-                else:
-                    env["PATH"] = env_path
-            else:
-                # Fallback to conda run (slower)
-                conda_cmd = self._find_conda()
-                if not conda_cmd:
-                    raise RuntimeError("conda not found. Please ensure conda is installed and in PATH or set CONDA_EXE")
-                
-                cmd = [
-                    conda_cmd, "run", "-n", self.config.conda_env,
-                    "mfa", "align",
-                    str(temp_corpus),
-                    self.config.mfa_dict,
-                    self.config.mfa_model,
-                    str(temp_output),
-                    "--clean",
-                    "--overwrite",
-                    "--num_jobs", "2"
-                ]
-                env = None
+            # Acquire lock to prevent multiple threads from unpacking MFA models simultaneously
+            # #region agent log
+            try:
+                log_path = Path(__file__).parent.parent / ".cursor" / "debug.log"
+                import threading as th
+                log_entry = {
+                    "sessionId": "debug-session",
+                    "runId": "mfa-lock-test",
+                    "hypothesisId": "MFA_LOCK_ACQUIRE",
+                    "location": "mfa_alignment.py:extract_phoneme_segments",
+                    "message": "Acquiring MFA lock",
+                    "data": {
+                        "thread_id": th.get_ident(),
+                        "audio_file": str(audio_path.name),
+                        "cache_hit": cache_key in self.cache
+                    },
+                    "timestamp": int(time.time() * 1000)
+                }
+                with open(log_path, 'a') as f:
+                    f.write(json.dumps(log_entry) + '\n')
+            except Exception:
+                pass
+            # #endregion
             
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=60,
-                env=env
-            )
+            with self._mfa_lock:
+                # #region agent log
+                try:
+                    log_path = Path(__file__).parent.parent / ".cursor" / "debug.log"
+                    log_entry = {
+                        "sessionId": "debug-session",
+                        "runId": "mfa-lock-test",
+                        "hypothesisId": "MFA_LOCK_ACQUIRED",
+                        "location": "mfa_alignment.py:extract_phoneme_segments",
+                        "message": "MFA lock acquired, starting subprocess",
+                        "data": {
+                            "thread_id": th.get_ident(),
+                            "audio_file": str(audio_path.name)
+                        },
+                        "timestamp": int(time.time() * 1000)
+                    }
+                    with open(log_path, 'a') as f:
+                        f.write(json.dumps(log_entry) + '\n')
+                except Exception:
+                    pass
+                # #endregion
+                # Use direct MFA binary (much faster than conda run, like in notebook)
+                if self.mfa_bin and Path(self.mfa_bin).exists():
+                    # Direct execution - avoids conda run overhead
+                    cmd = [
+                        self.mfa_bin, "align",
+                        str(temp_corpus),
+                        self.config.mfa_dict,
+                        self.config.mfa_model,
+                        str(temp_output),
+                        "--clean",
+                        "--overwrite",
+                        "--num_jobs", "2"  # Use 2 jobs even for single file (helps with model loading)
+                    ]
+                    # Set environment to use conda environment's Python and libraries
+                    env = os.environ.copy()
+                    conda_env_path = Path(self.mfa_bin).parent.parent
+                    env_path = str(conda_env_path / "bin")
+                    if "PATH" in env:
+                        env["PATH"] = f"{env_path}:{env['PATH']}"
+                    else:
+                        env["PATH"] = env_path
+                else:
+                    # Fallback to conda run (slower)
+                    conda_cmd = self._find_conda()
+                    if not conda_cmd:
+                        raise RuntimeError("conda not found. Please ensure conda is installed and in PATH or set CONDA_EXE")
+                    
+                    cmd = [
+                        conda_cmd, "run", "-n", self.config.conda_env,
+                        "mfa", "align",
+                        str(temp_corpus),
+                        self.config.mfa_dict,
+                        self.config.mfa_model,
+                        str(temp_output),
+                        "--clean",
+                        "--overwrite",
+                        "--num_jobs", "2"
+                    ]
+                    env = None
+                
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                    env=env
+                )
+                # #region agent log
+                try:
+                    log_path = Path(__file__).parent.parent / ".cursor" / "debug.log"
+                    log_entry = {
+                        "sessionId": "debug-session",
+                        "runId": "mfa-lock-test",
+                        "hypothesisId": "MFA_LOCK_RELEASE",
+                        "location": "mfa_alignment.py:extract_phoneme_segments",
+                        "message": "MFA subprocess completed, releasing lock",
+                        "data": {
+                            "thread_id": th.get_ident(),
+                            "audio_file": str(audio_path.name),
+                            "returncode": result.returncode,
+                            "has_stderr": bool(result.stderr)
+                        },
+                        "timestamp": int(time.time() * 1000)
+                    }
+                    with open(log_path, 'a') as f:
+                        f.write(json.dumps(log_entry) + '\n')
+                except Exception:
+                    pass
+                # #endregion
             
             mfa_elapsed = (time.time() - mfa_start) * 1000
             

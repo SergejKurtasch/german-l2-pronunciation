@@ -43,6 +43,10 @@ CONFIDENCE_THRESHOLD = 0.25  # Balanced threshold (0.3 was too low, 0.5 too high
 CONFIDENCE_THRESHOLD_UNCLEAR = 0.1  # Below this, mark as "unclear"
 CONFIDENCE_THRESHOLD_STRICT = 0.6  # For high-confidence filtering (optional)
 
+# Validation confidence threshold for accepting phoneme corrections
+# If validation confidence > VALIDATION_CONFIDENCE_THRESHOLD, corrections are accepted
+VALIDATION_CONFIDENCE_THRESHOLD = 0.5  # 50% confidence threshold for validation corrections
+
 # Phoneme decoding: Using greedy decoding for honest pronunciation diagnosis
 # Greedy decoding reflects actual pronunciation without "correcting" user errors,
 # which is essential for accurate pronunciation diagnostics.
@@ -51,7 +55,9 @@ CONFIDENCE_THRESHOLD_STRICT = 0.6  # For high-confidence filtering (optional)
 FORCED_ALIGNMENT_BLANK_ID = 0
 
 # MFA (Montreal Forced Aligner) settings
-MFA_ENABLED = True  # Enable/disable MFA alignment option
+# If MFA_ENABLED = False: Always use only CTC alignment (MFA won't be loaded)
+# If MFA_ENABLED = True: Use MFA alignment when validation is enabled (provides better accuracy)
+MFA_ENABLED = False  # Enable/disable MFA alignment (both loading and usage)
 MFA_DICT = "german_mfa"  # MFA dictionary name (must be downloaded via: mfa model download dictionary german_mfa)
 MFA_MODEL = "german_mfa"  # MFA acoustic model name (must be downloaded via: mfa model download acoustic german_mfa)
 MFA_BIN_PATH = None  # Path to MFA binary (None = auto-detect from conda environment)
