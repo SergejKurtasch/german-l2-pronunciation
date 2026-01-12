@@ -156,43 +156,7 @@ class OptionalPhonemeValidator:
                 ...
             }
         """
-        # #region agent log
-        import json
-        import time
-        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
-            f.write(json.dumps({
-                'sessionId': 'debug-session',
-                'runId': 'run1',
-                'hypothesisId': 'C',
-                'location': 'phoneme_validator.py:102',
-                'message': 'Wrapper validate_phoneme_segment entry',
-                'data': {
-                    'validator_available': self.validator is not None,
-                    'audio_segment_length': len(audio_segment),
-                    'audio_segment_shape': list(audio_segment.shape) if hasattr(audio_segment, 'shape') else None,
-                    'audio_segment_dtype': str(audio_segment.dtype) if hasattr(audio_segment, 'dtype') else None,
-                    'phoneme_pair': phoneme_pair,
-                    'expected_phoneme': expected_phoneme,
-                    'suspected_phoneme': suspected_phoneme,
-                    'sr': sr
-                },
-                'timestamp': int(time.time() * 1000)
-            }) + '\n')
-        # #endregion
-        
         if self.validator is None:
-            # #region agent log
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
-                f.write(json.dumps({
-                    'sessionId': 'debug-session',
-                    'runId': 'run1',
-                    'hypothesisId': 'D',
-                    'location': 'phoneme_validator.py:129',
-                    'message': 'Validator is None',
-                    'data': {},
-                    'timestamp': int(time.time() * 1000)
-                }) + '\n')
-            # #endregion
             return {
                 'is_correct': None,
                 'confidence': 0.0,
@@ -200,19 +164,6 @@ class OptionalPhonemeValidator:
             }
         
         try:
-            # #region agent log
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
-                f.write(json.dumps({
-                    'sessionId': 'debug-session',
-                    'runId': 'run1',
-                    'hypothesisId': 'E',
-                    'location': 'phoneme_validator.py:137',
-                    'message': 'Calling external validator',
-                    'data': {},
-                    'timestamp': int(time.time() * 1000)
-                }) + '\n')
-            # #endregion
-            
             result = self.validator.validate_phoneme_segment(
                 audio_segment,
                 phoneme_pair=phoneme_pair,
@@ -221,45 +172,8 @@ class OptionalPhonemeValidator:
                 sr=sr
             )
             
-            # #region agent log
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
-                f.write(json.dumps({
-                    'sessionId': 'debug-session',
-                    'runId': 'run1',
-                    'hypothesisId': 'F',
-                    'location': 'phoneme_validator.py:144',
-                    'message': 'External validator returned',
-                    'data': {
-                        'result_keys': list(result.keys()),
-                        'is_correct': result.get('is_correct'),
-                        'confidence': result.get('confidence'),
-                        'predicted_phoneme': result.get('predicted_phoneme'),
-                        'error': result.get('error'),
-                        'has_error': 'error' in result
-                    },
-                    'timestamp': int(time.time() * 1000)
-                }) + '\n')
-            # #endregion
-            
             return result
         except Exception as e:
-            # #region agent log
-            import traceback
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
-                f.write(json.dumps({
-                    'sessionId': 'debug-session',
-                    'runId': 'run1',
-                    'hypothesisId': 'G',
-                    'location': 'phoneme_validator.py:146',
-                    'message': 'Exception in validation',
-                    'data': {
-                        'exception_type': type(e).__name__,
-                        'exception_message': str(e),
-                        'traceback': traceback.format_exc()
-                    },
-                    'timestamp': int(time.time() * 1000)
-                }) + '\n')
-            # #endregion
             print(f"Error in phoneme validation: {e}")
             return {
                 'is_correct': None,
