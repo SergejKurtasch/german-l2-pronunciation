@@ -1,0 +1,101 @@
+sentence,correct_phonemes,incorrect_phonemes,incorrect_phonemes_list,per,has_loanword,duration_seconds,total_expected_phonemes,total_recognized_phonemes
+nass,3,0,,0.0,False,0.39990234375,3,3
+Was weiß ich!,8,0,,0.0,False,0.93017578125,8,8
+Kann schon sein.,9,0,,0.0,False,1.08984375,9,9
+Wie misst man das?,12,0,,0.0,False,1.3095703125,12,12
+Maisgelb,7,0,,0.0,False,1.0400390625,7,7
+etwas,5,0,,0.0,False,0.6298828125,5,5
+Passen Sie doch auf!,12,0,,0.0,False,1.1298828125,12,12
+Das muss unbedingt unter uns bleiben.,26,1,ɐ→ɜ,0.037037037037037035,False,2.7109375,27,27
+"Was dich nicht tötet, härtet dich ab.",25,1,øː→yː,0.038461538461538464,False,2.279296875,26,26
+Die Boote liegen auf dem Trockenen.,23,1,-d,0.041666666666666664,False,2.2890625,24,23
+Ich kann den Fehler nicht finden.,21,1,ɐ→ɜ,0.045454545454545456,False,2.16015625,22,22
+Anschnallen nicht vergessen!,19,1,ɐ→ɾ,0.05,False,1.3798828125,20,20
+Die Welt ist ungerecht.,16,1,ɾ→r,0.058823529411764705,False,1.6904296875,17,17
+"Mit dem Raumschiff, bitte!",15,1,ʁ→r,0.0625,False,1.98046875,16,16
+Seine Gebeine liegen auf dem Knochenacker.,28,2,"-ə, ɪ→aɪ",0.06666666666666667,False,2.94921875,30,29
+Das klingt sehr gut.,13,1,e→eː,0.07142857142857142,False,1.4404296875,14,14
+"Meinen Sie mit Golf den Sport, das Auto oder den Meerbusen?",39,3,"ʁ→ɾ, ɐ→ɜ, ɐ→ɾ",0.07142857142857142,False,4.80859375,42,42
+"Am Geschenkpapier sieht man, von wem welches Geschenk ist.",37,3,"pʰ→p, pʰ→p, ɐ→ɾ",0.075,False,3.990234375,40,40
+an welchen Tagen?,12,1,aː→ɑː,0.07692307692307693,False,1.48046875,13,13
+Was soll ich essen,12,1,-z,0.07692307692307693,False,1.01953125,13,12
+Gleich und Gleich gesellt sich gern.,23,2,"-l, ʁ→ɾ",0.08,False,2.26953125,25,24
+Sonnenuntergang,11,1,ɐ→ɛ,0.08333333333333333,False,1.08984375,12,12
+"Mittelmeergrün,",11,1,yː→uː,0.08333333333333333,False,1.3798828125,12,12
+Danke vielmals!,11,1,aː→ɑː,0.08333333333333333,False,1.169921875,12,12
+Spuck ihn wieder aus!,11,1,ɐ→ɜ,0.08333333333333333,False,1.2802734375,12,12
+wieder abspielen,11,1,ɐ→ɜ,0.08333333333333333,False,1.2001953125,12,12
+Warte bis die Schranke oben ist!,21,2,"ɾ→r, e→ə",0.08695652173913043,False,2.150390625,23,23
+Hallo und willkommen im Forum!,20,2,"ɾ→r, u→ʊ",0.09090909090909091,False,2.0703125,22,22
+"Nein, das war kein Kompliment.",20,2,"aː→ɑː, ɐ→ɾ",0.09090909090909091,False,2.259765625,22,22
+Infos senden,10,1,o→uː,0.09090909090909091,False,1.33984375,11,11
+Wieso dauert das mit dem Löschflugzeug so lange?,30,3,"ɐ→ɜ, œ→ɛ, ɔ→aʊ",0.09090909090909091,False,2.900390625,33,33
+"Wenn Schäden entstehen, sind sie langfristig.",30,3,"ɛː→ɛ, +r, ç→k",0.09375,False,2.609375,32,33
+A V Musik suche nach dem Lied,19,2,"ʊ→uː, aː→a",0.09523809523809523,False,3.75,21,21
+"Unser Kunden haben oft eine genaue Vorstellung, von dem, was sie wollen.",48,5,"ɐ→ə, aː→ɑː, ɐ→ɾ, -l, +k",0.09615384615384616,False,4.6015625,52,52
+Manchmal kann man die Venus mit bloßem Auge beobachten.,37,4,"ç→tʃ, aː→a, +ə, n̩→n",0.1,False,3.83984375,40,41
+Schläfst du schon?,9,1,ː→uː,0.1,False,1.0,10,10
+Ich hasse dich!,9,1,-z,0.1,False,0.89013671875,10,9
+Einen Klon von mir selbst könnte ich nicht ausstehen.,35,4,"-a, e→aɪ, oː→uː, æ→ɾ",0.10256410256410256,False,3.91015625,39,38
+Nicht immer ist der technische Fortschritt offensichtlich.,35,4,"ɐ→ɜ, eː→ɛ, ɐ→ɾ, -ç",0.10256410256410256,False,3.359375,39,38
+Die Geschichte wollte sie mir auch auftischen.,26,3,"æ→ɾ, -a, o→aʊ",0.10344827586206896,False,3.2109375,29,28
+Bei uns schmeckt das Leitungswasser anders.,26,3,"ə→ɜ, -ɛ, ɾ→ɜ",0.10344827586206896,False,2.779296875,29,28
+"Waldpool, hat das eigentlich jemand gelesen? Wie cool ist das denn?",44,5,"pʰ→p, -ə, ɪ→aɪ, ɛ→ə, +k",0.10416666666666667,True,4.51953125,48,48
+Es ist noch nicht lange her.,17,2,"eː→ɛ, ɐ→ɾ",0.10526315789473684,False,1.740234375,19,19
+Das System ist auf dem neuesten Stand.,26,3,"ɔ→aʊ, +ə, n̩→n",0.10714285714285714,False,2.76953125,28,29
+Freuen Sie sich schon mal auf Post von meinem Anwalt!,33,4,"ʀ→r, -ɔ, ɪ→aʊ, aː→ɑː",0.10810810810810811,False,3.390625,37,36
+"Ich bin mir nicht sicher, ob sie das Kompliment verstanden hat.",42,5,"æ→ɾ, ɐ→ɜ, ɛː→ɛ, ɐ→ɾ, +t",0.10869565217391304,False,4.1796875,46,47
+Wollen wir Sina einweihen?,16,2,"ɐ→ɾ, ɪ→iː",0.1111111111111111,False,1.669921875,18,18
+Hat das denn nie ein Ende?,16,2,"-ɛ, ɪ→aɪ",0.1111111111111111,False,1.7900390625,18,17
+Nur wenn es sich nicht vermeiden lässt.,24,3,"ɐ→ɾ, eː→ɛ, ɐ→ɾ",0.1111111111111111,False,2.359375,27,27
+Das ist tatsächlich voll gut möglich.,24,3,"a→ɑː, øː→ø, k→ɡ",0.1111111111111111,False,2.970703125,27,27
+Auch Luft hat ein Gewicht.,16,2,"-ɛ, ɪ→aɪ",0.1111111111111111,False,1.5703125,18,17
+Distelblau,8,1,-d,0.1111111111111111,False,0.83984375,9,8
+Ich habe noch nie in meinem Leben eine Bewerbung schreiben müssen.,42,5,"aː→ɑː, +k, +ɾ, ʁ→r, +y",0.11363636363636363,False,3.7890625,44,47
+Bleigießen ist nun mal nicht so optimal für die Gesundheit.,39,5,"aː→ɑː, i→iː, aː→ɑː, yː→y, ɐ→ɾ",0.11363636363636363,False,3.859375,44,44
+Schwanzwedelnd kam Bello in die Küche.,24,3,"-l, ɔ→oː, +y",0.11538461538461539,False,2.80078125,26,26
+Den hättest du längst abgeben müssen!,24,3,"ː→uː, ə→eː, +y",0.11538461538461539,False,2.279296875,26,27
+Dienstag ist fast schon Wochenende.,23,3,"aː→ɑː, aː→a, e→ə",0.11538461538461539,False,2.41015625,26,26
+"Was wiederum als Verschleißteil zählt, ist Auslegungssache.",38,5,"e→ə, ɾ→r, u→ʊ, -t, s→ts",0.11627906976744186,False,4.01171875,43,42
+Wo ist denn nun die Ventilkappe abgeblieben?,30,4,"ɔ→oː, -u, -t, ɪ→iː",0.11764705882352941,False,2.640625,34,32
+spiele Cool down von Emby,16,2,"+k, iː→i",0.11764705882352941,True,2.91015625,17,18
+Was wird wie geschrieben?,15,2,"ʁ→ɾ, ʁ→ɾ",0.11764705882352941,False,1.900390625,17,17
+Lass uns das mal schnell erledigen.,22,3,"aː→a, ɛː→ɛ, ɐ→ɾ",0.12,False,2.009765625,25,25
+Was sind das überhaupt für Weicheier!,22,3,"yː→y, ɐ→ɜ, ɐ→ɾ",0.12,False,2.359375,25,25
+Meine Tochter werde ich nicht Brunhilde nennen.,30,4,"ɐ→ɜ, ʁ→r, ʊ→uː, +h",0.12121212121212122,False,2.80078125,33,34
+Leinen los!,7,1,n→d,0.125,False,0.85986328125,8,8
+Wie heißt die Hauptstadt von Tonga?,22,3,"+h, tʰ→t, ŋ→n",0.125,False,2.58984375,24,25
+Damit kann ich leider nicht dienen.,21,3,"a→ɑː, ɐ→ɜ, -ə",0.125,False,2.69921875,24,23
+Schönes Ding!,7,1,øː→ɜː,0.125,True,0.7001953125,8,8
+Ich sage kein Sterbenswörtchen.,21,3,"aː→ɑː, ʁ→ɾ, ʁ→ɾ",0.125,False,2.0703125,24,24
+"Wieso dauert es schon wieder so lange, bis die Bude warm wird?",35,5,"ɐ→ɜ, eː→ɛ, ɐ→ɜ, ʁ→ɾ, ʁ→ɾ",0.125,False,3.939453125,40,40
+Sie kennt nicht alle Nachnamen ihrer Schützlinge.,28,4,"n→t, ʁ→r, ɐ→ɜ, t→y",0.125,False,3.109375,32,32
+"Wie sicher ist es wirklich, dass die Sonne morgen wieder aufgehen wird?",41,6,"ɐ→ɜ, -eː, ʁ→ɾ, ʁ→ɾ, ɐ→ɜ, ʁ→ɾ",0.1276595744680851,False,3.6796875,47,46
+Auch in Afrika leben Pinguine.,20,3,"ɾ→r, ɑ→a, u→uː",0.13043478260869565,False,2.279296875,23,23
+Das kann doch nicht die Lösung sein.,21,3,"-d, øː→yː, +k",0.13043478260869565,False,2.130859375,23,23
+Was kommt alles in deinen Smoothie?,20,3,"s→ts, oː→uː, tʰ→s",0.13043478260869565,False,2.2109375,23,23
+"Nein, ich bin nicht einverstanden!",21,3,"ɐ→ɾ, +ə, n̩→n",0.13043478260869565,False,2.240234375,23,24
+Haben Sie Alkohol getrunken?,20,3,"aː→ɑː, o→oː, o→oː",0.13043478260869565,False,1.83984375,23,23
+"Ich denke, das Prinzip sollte klar geworden sein.",33,5,"ʁ→ɾ, -t, s→ts, aː→ɑː, ɐ→ɾ",0.13157894736842105,False,3.1796875,38,37
+"Entschuldige, die Element-Liste konnte nicht geladen werden.",40,6,"e→ɛ, e→ə, eː→ɛ, ɐ→ɾ, +ə, n̩→n",0.13333333333333333,False,3.91015625,45,46
+Laut Sendungsverfolgung liegt das Paket noch in Neustrelitz.,40,6,"ɐ→ɾ, +t, ɔ→aʊ, s→ʃ, ʁ→ɾ, ɛ→eː",0.13333333333333333,False,4.3515625,45,46
+Sie stecken wahnsinnig viel Energie in das Projekt.,33,5,"+t, ç→ɡ, eː→ɛ, ʁ→ɾ, oː→o",0.13513513513513514,True,3.140625,37,38
+Wie teuer darf eine Abmahnung sein?,19,3,"ɔ→oː, ɐ→ɜ, ɑ→ɑː",0.13636363636363635,False,2.490234375,22,22
+Das passt wie die Faust aufs Auge.,19,3,"pʰ→p, -a, o→aʊ",0.13636363636363635,False,2.529296875,22,21
+Foto mit F finde ich normal.,19,3,"o→uː, ʁ→ɾ, aː→ɑː",0.13636363636363635,False,2.509765625,22,22
+Nächstes Mal werde ich lieber anderthalbfache Geschwindigkeit nehmen.,44,7,"ç→k, aː→ɑː, ɐ→ɜ, ɛ→ɜ, ɾ→t, t→h, -ç",0.13725490196078433,False,4.30859375,51,50
+"Okay, dann haltet mich auf dem Laufenden!",25,4,"o→oː, -a, o→aʊ, ɛ→ə",0.13793103448275862,True,2.7109375,29,28
+Jetzt kann sie wenigstens niemanden mehr beißen.,31,5,"-t, s→ts, ɡ→k, ɛ→ə, ɐ→ɾ",0.1388888888888889,False,2.83984375,36,35
+Über die Drogenfunde ist längst Gras gewachsen.,31,5,"yː→uː, ɐ→ɜ, ʁ→r, ʁ→ɾ, aː→a",0.1388888888888889,False,3.41015625,36,36
+Mit welchen Fertigkeiten können Sie uns sonst noch beeindrucken?,43,7,"-k, -ə, iː→aɪ, œ→ə, -a, e→aɪ, ɾ→r",0.14,False,3.689453125,50,47
+Jerry hat den Sekt zu schnell getrunken und nun ist ihm schwindelig.,43,7,"j→dʒ, ʁ→r, ɪ→iː, -t, s→ts, e→ə, ç→k",0.14,False,4.578125,50,49
+"Frauen sollten keinen Alkohol trinken, wenn sie unsicher sind, ob sie schwanger sind.",50,8,"ʀ→r, +ə, n̩→n, o→oː, o→oː, ʁ→r, ɐ→ɜ, ɐ→ɜ",0.14035087719298245,False,4.98828125,57,58
+Wie uncool!,6,1,kʰ→k,0.14285714285714285,False,1.08984375,7,7
+wer macht,6,1,ɐ→ɾ,0.14285714285714285,False,0.81005859375,7,7
+Dann Kauf doch Neues!,13,2,"+t, ø→j",0.14285714285714285,False,1.6298828125,14,15
+"Aha, die machen Party und wir sind die Abteilung, die nicht eingeladen wurde.",49,8,"j→iː, ɐ→ɾ, -ə, iː→aɪ, +k, -a, e→aɪ, ʊ→uː",0.14285714285714285,True,5.109375,56,55
+Letztlich verschwendet man damit doch unzählige Stunden seines Lebens.,48,8,"t→ts, ɛː→ɛ, ɐ→ɾ, a→ɑː, -t, s→ts, ɛ→ə, -s",0.14285714285714285,False,4.41015625,56,54
+dunkles Schiefergrau,12,2,"ɐ→ə, ʁ→r",0.14285714285714285,False,2.48046875,14,14
+"Ich bin froh, dass ich helfen kann.",19,3,"ʁ→ɾ, +ə, n̩→n",0.14285714285714285,False,2.310546875,21,22
+Das ist eine Eins-plus mit Sternchen.,24,4,"-a, e→aɪ, s→ts, uː→ʊ",0.14285714285714285,False,3.259765625,28,27
+Konnte der Protagonist sein Computerproblem lösen?,36,6,"eː→ɛ, ɐ→ɾ, -ʀ, o→oː, o→oː, øː→ø",0.14285714285714285,False,3.41015625,42,41

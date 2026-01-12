@@ -164,73 +164,75 @@ def _align_manual(
     gap_penalty: float,
     use_similarity_matrix: bool = True
 ) -> Tuple[List[Tuple[Optional[str], Optional[str]]], float]:
-    """Manual implementation of Needleman-Wunsch with word boundary support."""
+    """
+    Manual implementation of Needleman-Wunsch with improved backtracking.
+    Uses path tracking during DP table filling for more accurate alignment.
+    """
     m = len(sequence1)
     n = len(sequence2)
     
-    # Define reduced gap penalty for word boundary marker
-    boundary_gap_penalty = gap_penalty * 0.5  # Less penalty for inserting/deleting '||'
+    if m == 0 and n == 0:
+        return ([], 0.0)
+    if m == 0:
+        return ([(None, ph) for ph in sequence2], n * gap_penalty)
+    if n == 0:
+        return ([(ph, None) for ph in sequence1], m * gap_penalty)
     
     # Initialize DP table
     dp = np.zeros((m + 1, n + 1))
     
+    # Track which operation led to each cell: 'M'=match, 'D'=delete, 'I'=insert
+    path = np.zeros((m + 1, n + 1), dtype=np.uint8)
+    # 0 = match, 1 = delete, 2 = insert
+    
     # Initialize first row and column (gap penalties)
     for i in range(1, m + 1):
-        # Use reduced penalty if this phoneme is a word boundary
-        penalty = boundary_gap_penalty if sequence1[i-1] == '||' else gap_penalty
-        dp[i][0] = dp[i-1][0] + penalty
+        dp[i][0] = dp[i-1][0] + gap_penalty
+        path[i][0] = 1  # Delete
     for j in range(1, n + 1):
-        # Use reduced penalty if this phoneme is a word boundary
-        penalty = boundary_gap_penalty if sequence2[j-1] == '||' else gap_penalty
-        dp[0][j] = dp[0][j-1] + penalty
+        dp[0][j] = dp[0][j-1] + gap_penalty
+        path[0][j] = 2  # Insert
     
-    # Fill DP table
+    # Fill DP table with path tracking
     for i in range(1, m + 1):
         for j in range(1, n + 1):
-            # Calculate match/mismatch score using similarity matrix or simple scoring
+            # Calculate match/mismatch score
             if use_similarity_matrix:
                 similarity = get_phoneme_similarity(sequence1[i-1], sequence2[j-1])
-                match = dp[i-1][j-1] + similarity
+                match_score_val = similarity
             else:
-                match = dp[i-1][j-1] + (match_score if sequence1[i-1] == sequence2[j-1] else mismatch_score)
+                match_score_val = match_score if sequence1[i-1] == sequence2[j-1] else mismatch_score
             
-            # Use reduced gap penalty for word boundaries
-            delete_penalty = boundary_gap_penalty if sequence1[i-1] == '||' else gap_penalty
-            insert_penalty = boundary_gap_penalty if sequence2[j-1] == '||' else gap_penalty
+            match = dp[i-1][j-1] + match_score_val
+            delete = dp[i-1][j] + gap_penalty
+            insert = dp[i][j-1] + gap_penalty
             
-            delete = dp[i-1][j] + delete_penalty
-            insert = dp[i][j-1] + insert_penalty
-            dp[i][j] = max(match, delete, insert)
+            # Choose best option and track path
+            if match >= delete and match >= insert:
+                dp[i][j] = match
+                path[i][j] = 0  # Match
+            elif delete >= insert:
+                dp[i][j] = delete
+                path[i][j] = 1  # Delete
+            else:
+                dp[i][j] = insert
+                path[i][j] = 2  # Insert
     
-    # Backtrack to get alignment
+    # Backtrack using stored path (more reliable than recalculating)
     pairs = []
     i, j = m, n
     
     while i > 0 or j > 0:
         if i > 0 and j > 0:
-            # Calculate what score led to current cell
-            if use_similarity_matrix:
-                similarity = get_phoneme_similarity(sequence1[i-1], sequence2[j-1])
-                match_score_used = similarity
-            else:
-                match_score_used = match_score if sequence1[i-1] == sequence2[j-1] else mismatch_score
-            
-            # Calculate gap penalties used (may be reduced for boundaries)
-            delete_penalty = boundary_gap_penalty if sequence1[i-1] == '||' else gap_penalty
-            insert_penalty = boundary_gap_penalty if sequence2[j-1] == '||' else gap_penalty
-            
-            # Check which operation led to this cell
-            if abs(dp[i][j] - (dp[i-1][j-1] + match_score_used)) < 1e-9:
-                # Match/Mismatch (diagonal)
+            operation = path[i][j]
+            if operation == 0:  # Match/Mismatch
                 pairs.append((sequence1[i-1], sequence2[j-1]))
                 i -= 1
                 j -= 1
-            elif abs(dp[i][j] - (dp[i-1][j] + delete_penalty)) < 1e-9:
-                # Delete (gap in sequence2)
+            elif operation == 1:  # Delete (gap in sequence2)
                 pairs.append((sequence1[i-1], None))
                 i -= 1
-            else:
-                # Insert (gap in sequence1)
+            else:  # operation == 2, Insert (gap in sequence1)
                 pairs.append((None, sequence2[j-1]))
                 j -= 1
         elif i > 0:

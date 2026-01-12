@@ -924,19 +924,7 @@ class G2PConverter:
                         'source': source or 'unknown'
                     })
                 
-                # Add word boundary marker after this word (but not after the last word)
-                word_count += 1
-                # Check if this is not the last word (peek ahead for more alphanumeric tokens)
-                remaining_tokens = tokens[tokens.index(token) + 1:]
-                has_more_words = any(t[0].isalnum() for t in remaining_tokens)
-                
-                if has_more_words:
-                    all_expected_phonemes.append({
-                        'phoneme': '||',
-                        'position': token_pos + len(token),
-                        'text_char': ' ',  # Represents word boundary
-                        'source': 'boundary'
-                    })
+                # Word boundary markers removed - no longer adding '||' dividers
             
             current_char_pos = token_pos + len(token)
         

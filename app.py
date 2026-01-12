@@ -173,15 +173,11 @@ def collapse_consecutive_duplicates(phonemes: List[str]) -> List[str]:
     Collapse consecutive duplicate phonemes (same logic as CTC collapse).
     This ensures that expected and recognized phonemes are processed consistently.
     
-    Word boundary marker '||' prevents collapse across word boundaries:
-    - Example: ['a', 'n', 'a', '||', 'a', 'p', 'f', 'ə', 'l'] 
-    - Result: ['a', 'n', 'a', '||', 'a', 'p', 'f', 'ə', 'l'] (two 'a' preserved)
-    
     Args:
-        phonemes: List of phoneme strings (may include '||' boundary markers)
+        phonemes: List of phoneme strings
         
     Returns:
-        List of phonemes with consecutive duplicates collapsed (preserving boundaries)
+        List of phonemes with consecutive duplicates collapsed
     """
     if not phonemes:
         return phonemes
@@ -192,13 +188,6 @@ def collapse_consecutive_duplicates(phonemes: List[str]) -> List[str]:
     for phoneme in phonemes:
         # Skip empty phonemes
         if not phoneme or not phoneme.strip():
-            continue
-        
-        # Word boundary marker: add it and reset prev_phoneme
-        # This allows the same phoneme to appear after boundary without being collapsed
-        if phoneme == '||':
-            collapsed.append(phoneme)
-            prev_phoneme = None  # Reset to allow same phoneme after boundary
             continue
         
         # If different from previous, add it
@@ -913,7 +902,7 @@ def process_pronunciation(
             # #endregion
             
             # Output 4: Colored text
-            # Convert aligned_pairs to dict format for visualization
+            # Convert aligned_pairs to dict format for visualization (for backward compatibility)
             aligned_pairs_dict = []
             for i, (exp, rec) in enumerate(aligned_pairs):
                 if i < len(diagnostic_results):
@@ -929,8 +918,25 @@ def process_pronunciation(
             
             # Use recognized text for colored text if original text was empty
             text_for_colored = recognized_text if text_is_empty else text
+            # Get expected phonemes dict for the text used for coloring
+            # If using recognized text, get phonemes for recognized text, otherwise use original expected_phonemes_dict
+            expected_phonemes_dict_for_coloring = expected_phonemes_dict
+            if text_is_empty and recognized_text:
+                # Re-get expected phonemes for recognized text
+                from modules.g2p_module import get_expected_phonemes as get_expected_phonemes_func
+                try:
+                    expected_phonemes_dict_for_coloring = get_expected_phonemes_func(recognized_text)
+                except Exception as e:
+                    print(f"Warning: Failed to get expected phonemes for recognized text: {e}")
+                    expected_phonemes_dict_for_coloring = expected_phonemes_dict
+            
             viz_colored_start = time.time()
-            colored_text_html = create_colored_text(text_for_colored, aligned_pairs_dict)
+            colored_text_html = create_colored_text(
+                text_for_colored, 
+                aligned_pairs_dict,
+                expected_phonemes_dict=expected_phonemes_dict_for_coloring,
+                aligned_pairs_tuples=aligned_pairs
+            )
             viz_colored_elapsed = (time.time() - viz_colored_start) * 1000
             # #region agent log
             with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:

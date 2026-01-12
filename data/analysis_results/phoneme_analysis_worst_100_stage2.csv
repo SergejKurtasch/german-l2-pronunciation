@@ -1,0 +1,101 @@
+sentence,correct_phonemes,incorrect_phonemes,incorrect_phonemes_list,per,has_loanword,duration_seconds,total_expected_phonemes,total_recognized_phonemes
+"orange,",1,4,"o→oː, ʁ→r, +a, ː→ŋ",1.0,False,0.509765625,4,5
+drehe,1,4,"d→t, ɾ→r, eː→e, +j",1.0,False,0.72998046875,4,5
+Grüß dich!,2,5,"ɡ→h, ɾ→o, yː→j, d→t, ç→ʃ",0.7142857142857143,False,0.669921875,7,7
+oder,1,2,"oː→uː, -ɐ",0.6666666666666666,False,0.39990234375,3,2
+"Happy Purzeltag, du Eule!",7,11,"pʰ→p, ɪ→iː, pʰ→p, ʊ→u, ʁ→ɾ, l→n, tʰ→t, x→k, ː→d, ɔ→uː, +oɪ",0.6470588235294118,False,2.130859375,17,18
+Lawrence kansas,5,9,"a→ɔ, -v, ʁ→ɹ, ɛ→ə, ŋ→n, z→s, -ə, a→ɛ, ɑ→ɪ",0.6428571428571429,False,1.5,14,12
+verschneit,3,5,"ɛː→ɛ, ɐ→ɾ, -ə, iː→aɪ, t→d",0.625,False,0.72021484375,8,7
+Ist da Ingwer drin?,8,7,"+d, ː→ɑː, ɐ→ɛ, +ɾ, d→t, +ə, ʁ→r",0.5833333333333334,False,1.3603515625,12,15
+snowboy,3,4,"ɔ→oː, -v, -ɔ, ø→oʊ",0.5714285714285714,False,0.85986328125,7,5
+"weizen,",3,4,"-a, -e, t→aɪ, s→ts",0.5714285714285714,False,0.72998046875,7,5
+Dort drüben werden gerade zwei Plätze frei.,17,19,"ʁ→ɾ, ʁ→ɾ, yː→uː, +ə, m̩→n, eː→ɛ, ɐ→ɾ, +ə, n̩→n, ə→eː, ʁ→r, aː→a, -t, s→ts, -t, s→ts, ɾ→r, -a, e→aɪ",0.5588235294117647,False,2.939453125,34,33
+übertrage,4,5,"yː→uː, -ɛ, ɾ→ɜ, -ɾ, ɑ→r",0.5555555555555556,False,0.97021484375,9,7
+Ist Common Voice zusammengebrochen?,14,16,"kʰ→k, ɔ→a, -j, ɔ→ə, ŋ→n, f→v, -oː, ɪ→aʊ, -t, s→ts, -m, ɛ→ə, ŋ→n, +ɡ, ɛ→ə, ʁ→ɾ",0.5517241379310345,False,2.26953125,29,26
+Scheiß drauf!,4,4,"d→t, ɾ→r, -a, o→aʊ",0.5,False,0.85009765625,8,7
+"Sonntag,",3,3,"z→s, ɔ→o, aː→a",0.5,False,0.56005859375,6,6
+"dunkel orange,",6,5,"-l, o→oː, ʁ→r, +a, ː→ŋ",0.5,False,1.419921875,10,10
+Blöde Extra-Verifikation!,13,12,"+ə, l→n, øː→ø, -., ʁ→ɾ, f→v, ɛː→e, ɐ→r, i→iː, ɑ→a, t→ts, s→j",0.5,False,1.990234375,24,24
+Der Klügere gibt nach.,10,8,"eː→ɛ, +ɾ, ɐ→ɾ, yː→uː, ɐ→ə, +r, iː→ɪ, aː→ɑː",0.5,False,1.7099609375,16,18
+Wir müssen zuerst die Echtheit überprüfen.,17,15,"ɐ→ɾ, +y, -t, s→ts, u→uː, eː→ɛ, ɐ→ɾ, ə→h, iː→aɪ, yː→y, ɐ→ɜ, ʀ→ɾ, yː→uː, +ə, ̩→n",0.5,False,2.94921875,30,31
+Um welche Uhrzeit?,7,7,"-., ç→tʃ, uː→w, ɐ→ɪ, -t, s→ts, t→d",0.5,False,1.4599609375,14,12
+Reich mir den mal rüber.,9,8,"ɾ→r, -a, e→aɪ, æ→ɾ, aː→a, ʁ→r, +uː, ɐ→ə",0.5,False,1.4501953125,16,16
+purpur,3,3,"ʊ→uː, -ɾ, -ɐ",0.5,False,1.259765625,6,4
+Es zieht.,3,3,"eː→ɛ, -t, s→ts",0.5,False,0.669921875,6,5
+Was ziehe ich mir zur Vernissage an?,14,14,"-t, s→ts, -æ, t→ɾ, s→ts, ɐ→ɾ, f→v, ɛː→ɛ, ɐ→ɾ, ɪ→iː, -z, ɑ→a, ɡ→ʃ, -ə",0.5,False,2.66015625,28,24
+Essen Timer.,5,5,"-z, tʰ→t, ɪ→aɪ, -eː, ɐ→ə",0.5,False,1.330078125,10,8
+grasgrün,4,4,"ɾ→r, ɑː→a, ɾ→r, yː→uː",0.5,False,1.080078125,8,8
+System software,8,7,"ɪ→y, +h, eː→iː, z→s, a→ɛ, -ɽ, ə→ɾ",0.5,True,1.66015625,14,14
+Das Vergnügen ist ganz meinerseits.,17,14,"ɐ→ɾ, yː→uː, +ə, ŋ̩→n, +t, s→ts, -a, e→aɪ, -ɛ, ɾ→ɜ, -a, -e, t→aɪ, s→ts",0.4827586206896552,False,2.4609375,29,27
+"Aufsitzen, Männer! Wir reiten weiter.",13,12,"-a, o→aʊ, -t, s→ts, ɐ→ɜ, ɐ→ɾ, ʀ→r, n̩→ə, v→n, ə→v, iː→aɪ, ɐ→ɜ",0.48,False,2.869140625,25,23
+"Eine Methodik und so weiter und so weiter, et cetera, et cetera.",25,23,"ɛ→e, o→oː, i→ɪ, -ə, iː→aɪ, ɐ→ɜ, -ə, iː→aɪ, ɐ→ə, -eː, t→b, t→eː, eː→ɛ, e→ɛ, ɾ→r, ɑ→a, eː→ɪ, -t, -t, eː→ɛ, e→ɛ, ɾ→r, ɑ→a",0.4791666666666667,False,5.33984375,48,43
+Mehr Vorleser werden gesucht.,12,10,"ɐ→ɾ, ɐ→ɾ, ə→eː, s→z, ɐ→ə, eː→ɛ, ɐ→ɾ, +ə, n̩→n, ʊ→uː",0.47619047619047616,False,2.0390625,21,22
+was sagt wikipedia über,10,9,"aː→a, ɪ→iː, cʰ→k, -ɪ, pʰ→p, ɛ→eː, iː→i, yː→y, ɐ→ɜ",0.47368421052631576,False,2.55078125,19,18
+So kurz vor dem Ziel!,9,8,"ʊ→uː, ʁ→ɾ, t→ts, -s, oː→ɔ, ɐ→ɾ, -t, s→ts",0.47058823529411764,False,1.48046875,17,15
+Sind ja nur Steuergelder!,12,8,"+j, +ɑː, ː→ɾ, ɐ→ɾ, +j, ɐ→ɜ, ɟ→ɡ, ɐ→ɜ",0.47058823529411764,False,1.6201171875,17,20
+Die werden ja nicht schlecht.,11,8,"-d, eː→ɛ, +ɾ, +d, ɐ→ə, d→n, n̩→j, ː→ɑː",0.47058823529411764,False,2.0390625,17,18
+Sie fallen ja sowieso aus.,11,7,"+ə, +n, n̩→j, ː→ɑː, o→oː, i→iː, +s",0.4666666666666667,False,1.8701171875,15,18
+Augen zu und durch!,8,6,"ŋ̩→ə, t→n, s→ts, +t, ʊ→oː, ʁ→ɾ",0.46153846153846156,False,1.650390625,13,14
+Höchstens ein Supercomputer wäre dazu in der Lage.,23,18,"øː→yː, +k, ç→s, -ɛ, ɪ→aɪ, pʰ→p, ɐ→ɜ, +k, tʰ→t, ɐ→ə, ɛː→ɛ, ʀ→r, -t, s→ts, u→uː, eː→ɛ, ɐ→ɾ, aː→ɑː",0.46153846153846156,False,3.8203125,39,39
+zeichne Audio auf,7,6,"-t, s→ts, -a, e→aɪ, ɪ→iː, ɔ→oː",0.46153846153846156,False,1.6298828125,13,11
+Die Alkoholiker in meiner Wohngemeinschaft versuchen mich immer zum Mittrinken zu motivieren.,40,32,"o→oː, +h, o→oː, i→ɪ, ɐ→ə, ɐ→ɜ, o→oː, ŋ→n, -e, m→ɡ, a→ə, -e, n→m, -s, t→aɪ, s→n, h→ʃ, ɛː→ɛ, ɐ→ɾ, ʊ→uː, -ɐ, t→ɜ, s→ts, ʊ→uː, m→ɪ, ɪ→t, ɾ→r, -t, s→ts, o→oː, i→iː, ʁ→r",0.4507042253521127,False,5.7109375,71,67
+Idealerweise sollten die Verwaltungen freie Software einsetzen.,30,22,"ɪ→iː, ɛ→eː, +j, aː→ɑː, +ɜ, ɐ→ɾ, aj→aɪ, +ə, n̩→n, ɛː→ɛ, ɐ→ɾ, ə→aɪ, iː→ə, j→s, -ə, z→h, a→eː, ɽ→ɛ, ə→ɾ, t→ts, s→ə, n̩→n",0.4489795918367347,True,4.33984375,49,51
+"Fährst du rückwärts gegen einen Baum, verkürzt du so deinen Kofferraum.",34,24,"+d, ː→uː, ʁ→r, +y, -ʁ, t→ɾ, s→ts, e→eː, -., -a, e→aɪ, -a, o→aʊ, ɛː→ɛ, ɐ→ɾ, +y, +d, ː→uː, -f, -ɛ, ɾ→ɜ, ɾ→r, -a, o→aʊ",0.4444444444444444,False,4.37890625,54,51
+"Du begreifst aber das Dilemma, oder?",16,12,"+d, ː→uː, ɾ→r, -a, e→aɪ, ɑː→a, -e, ɾ→aɪ, iː→i, -m, ɑ→ɑː, ɐ→ɜ",0.4444444444444444,False,2.5,27,25
+Bei ihrem ersten professionellen Fotoshooting war sie sehr aufgeregt.,31,22,"ʁ→r, ɐ→ɾ, +ə, n̩→n, ʁ→ɾ, ɪ→j, ɔ→oː, +ə, n̩→n, tʰ→t, ɔ→oː, -ɔ, oː→uː, tʰ→t, +k, aː→ɑː, ɐ→ɾ, e→eː, -a, o→aʊ, ɾ→r, ɛ→eː",0.44,True,5.0390625,50,51
+"Ja, aber sicher ist sicher.",10,7,"ː→j, b→a, e→b, ɾ→ɜ, +ɜ, ɐ→ɾ, ɐ→ɜ",0.4375,False,2.259765625,16,17
+"Naja, das ist aber nur ein Teil der Wahrheit.",20,14,"aː→ɑː, aː→ɑː, +s, -e, ɾ→ɜ, -ɐ, ɛ→ɾ, ɪ→aɪ, eː→ɛ, ɐ→ɾ, ɑ→ɑː, +h, ə→h, iː→aɪ",0.4375,False,3.19921875,32,32
+Am sichersten geht es mit einem Certificate Signing Request.,27,20,"-ɛ, ɾ→ɜ, e→eː, eː→ɛ, -a, e→aɪ, ɐ→z, tʰ→ø, ɪ→ɾ, f→t, cʰ→f, ɛ→ɪ, +k, ɪ→eɪ, -ɪ, ɡ→aɪ, ɪ→ə, ʁ→ɹ, eː→ɪ, v→w",0.43478260869565216,True,4.23828125,46,44
+Meinst du einen Soziopathen?,13,10,"-a, e→aɪ, t→d, -ː, a→uː, e→aɪ, -t, s→ts, ɪ→iː, ɑ→a",0.43478260869565216,False,1.8798828125,23,20
+"Ah, voll durch die Brennnesseln gelaufen!",17,13,"aː→a, ʊ→uː, -ʁ, b→p, ʁ→r, -n, -n, ɛ→ɪ, -z, ɛ→ə, -l, -a, o→aʊ",0.43333333333333335,False,3.140625,30,24
+Kennst du die neusten Top einhundert der Charts?,22,16,"-n, ː→uː, ɔ→aʊ, ø→ə, +ɾ, oː→ɔ, -a, e→aɪ, -ɛ, ɾ→ɜ, eː→ɛ, ɐ→ɾ, kʰ→ʃ, -ʁ, t→ɾ, s→ts",0.43243243243243246,False,2.8203125,37,34
+In einer alten Kaverne werden die Gasvorräte gespeichert.,27,19,"-a, e→aɪ, -ɛː, ɐ→ɜ, +ə, n̩→n, ɑː→a, eː→ɛ, ɐ→ɾ, +ə, n̩→n, aː→ɑː, ʁ→r, eː→ɛ, tʰ→t, -a, e→aɪ, -ɛ, ɾ→ɜ",0.4318181818181818,False,3.94921875,44,42
+"Helles Lachsrosa,",8,6,"-l, ə→ɪ, x→k, ʁ→r, oː→o, ɑː→a",0.42857142857142855,False,2.3203125,14,13
+"Ein paar sind ja ganz okay, aber so viele?",18,12,"-ɛ, ɪ→aɪ, -aː, ɐ→ɑː, +j, +ɛ, ː→ɾ, o→oː, ɑː→a, -e, ɾ→ɜ, v→f",0.42857142857142855,True,3.2890625,28,27
+Probieren geht über Studieren.,13,9,"ʁ→ɾ, o→oː, ʁ→r, e→eː, yː→y, ɐ→ɜ, u→uː, +r, ɐ→ə",0.42857142857142855,False,2.060546875,21,22
+sei leise,4,3,"z→s, -ɛ, ɪ→aɪ",0.42857142857142855,False,1.08984375,7,6
+Willkommen in der Europäischen Union!,17,11,"eː→ɛ, ɐ→ɾ, ɔ→aɪ, ʁ→r, ɔ→oː, pʰ→p, +ə, n̩→n, u→ʊ, +d, i→j",0.4230769230769231,False,2.5390625,26,28
+adapt Überwachung ist deaktiviert,18,11,"+ɛ, ɑ→ɾ, yː→y, -ə, ʁ→ɜ, χ→x, +k, +a, tʰ→t, ɪ→iː, ɐ→ɾ",0.4230769230769231,False,3.310546875,26,28
+Röhrenbildschirme flimmern bei sechzig Hertz fürchterlich.,26,19,"ʁ→r, -øː, ʁ→r, ɪ→y, ʁ→ɾ, -m, -ɛ, ɾ→ɑː, -t, s→ts, ç→k, eː→ɛ, ɐ→ɾ, t→ts, s→f, f→ø, -t, s→ç, ɐ→ɜ",0.4222222222222222,False,3.73046875,45,40
+Compositing aussetzen,11,8,"kʰ→k, pʰ→p, ɪ→ə, tʰ→t, -a, o→aʊ, -t, s→ts",0.42105263157894735,True,1.75,19,17
+Dahingehend hast du recht.,13,8,"a→ɑː, ə→eː, -h, ɛ→ə, +t, +d, ː→uː, ʁ→r",0.42105263157894735,False,2.01953125,19,20
+Solarmodule leiden unter Hitze.,16,10,"ɔ→o, aː→a, -ɐ, oː→o, +ə, n̩→n, +ɜ, ɐ→ɾ, -t, s→ts",0.4166666666666667,False,2.76953125,24,24
+Dadurch könnte man etwas Speicherplatz sparen.,21,15,"a→ɑː, ʊ→uː, -ɾ, x→ç, œ→ə, -a, e→aɪ, -ɛ, ɾ→ɜ, t→ts, s→ʃ, ʃ→p, p→ɑː, aː→r, ɐ→ə",0.4166666666666667,False,3.189453125,36,33
+Worin unterscheiden sich Psychologen von Psychiatern?,25,17,"ɾ→r, -ɛ, -ɾ, z→ɜ, ç→ʃ, -a, e→aɪ, s→z, +y, o→oː, o→oː, s→z, yː→y, -ɪ, aː→ɑː, tʰ→t, ɐ→ə",0.4146341463414634,False,3.4609375,41,38
+Den Grünstreifen neben der Adenauer-Chaussee bewässern Gärtner von der Stadt.,36,24,"ʁ→ɾ, yː→uː, ʁ→ɾ, aj→aɪ, +ə, m̩→n, eː→ɛ, ɐ→ɾ, ɑː→a, e→ə, -a, o→aʊ, ɐ→ɜ, ç→ʃ, -a, o→ɔ, -s, -ə, ə→eː, ɐ→ɜ, +t, ɐ→ə, eː→ɛ, ɐ→ɾ",0.41379310344827586,False,5.5,58,56
+"Einerseits ist die Situation vorerst bereinigt, andererseits bleibt die Möglichkeit des Gegenangriffs aus.",52,36,"-a, e→aɪ, -ɛː, ɐ→ɜ, -a, e→aɪ, t→ts, tʰ→iː, ʊ→t, a→uː, t→w, +a, s→ts, ɐ→ɾ, ɛː→ɛ, ɐ→ɾ, ʃ→s, ɾ→r, -a, e→aɪ, eː→ə, ɾ→r, -ɛ, ɾ→ɜ, -a, -e, t→aɪ, -a, e→aɪ, øː→ø, ə→ɛ, ə→eː, ŋ→n, ɾ→ɡ, ɪ→r, f→ɪ",0.41379310344827586,False,6.890625,87,80
+mehrere Übereinstimmungen wurden gefunden.,22,14,"e→eː, ɾ→r, ɐ→ə, +r, yː→uː, -e, -ɾ, a→ɜ, e→aɪ, s→ʃ, -m, ʊ→uː, +ə, n̩→n",0.4117647058823529,False,3.08984375,34,33
+Da haben wir die Bescherung!,13,7,"+d, ː→ɑː, aː→ɑː, ɐ→ɾ, ɐ→eː, +r, +k",0.4117647058823529,False,1.580078125,17,20
+Zu jener Zeit tourte eine Rockerlegende durch den Westen.,27,18,"-t, s→ts, -ɐ, t→ɜ, s→ts, -a, e→aɪ, tʰ→t, ʊ→uː, ʁ→ɾ, tʰ→t, ʁ→r, kʰ→k, +ɜ, ɐ→ɾ, ə→ɛ, ʊ→oː, -ʁ",0.4090909090909091,False,4.05859375,44,41
+In der Villa spukt ein Poltergeist.,16,11,"eː→ɛ, ɐ→ɾ, -l, ɑ→ɑː, ʊ→uː, -ɛ, ɪ→aɪ, pʰ→p, tʰ→t, ɐ→ɜ, aj→aɪ",0.4074074074074074,False,2.580078125,27,25
+Der Pförtner war leicht aufs Kreuz zu legen.,20,13,"eː→ɛ, ɐ→ɾ, ɐ→ə, aː→ɑː, ɐ→ɾ, -ʁ, -ɔ, t→ɾ, s→oɪ, t→ts, s→ts, +ə, ŋ̩→n",0.40625,False,3.119140625,32,31
+Schildkröten werden bis zu zweihundert Jahre alt.,24,15,"ʀ→r, øː→ø, +ə, n̩→n, eː→ɛ, ɐ→ɾ, +ə, n̩→n, -t, s→ts, -t, s→ts, ɐ→ɜ, aː→ɑː, ʀ→r",0.40540540540540543,False,4.01171875,37,37
+"Sozial ist, was Menschen um Arbeit erleichtert.",22,15,"o→oː, -t, s→ts, i→iː, aː→ɑː, -z, ç→ʃ, ʁ→ɾ, ɛː→ɛ, ɐ→ɾ, -a, e→aɪ, -ɛ, -ɾ, t→ɜ",0.40540540540540543,False,3.33984375,37,32
+Lass uns mal kurz auf den Highscore gucken.,22,15,"aː→ɑː, -ʁ, t→ɾ, s→ts, -n, -(, -e, -), k→ɡ, ɔː→oː, (→ɾ, d→k, -e, -), -ɡ",0.40540540540540543,False,2.6796875,37,29
+Formulieren Sie die zugehörige Kontinuitätsgleichung!,26,17,"ʁ→ɾ, u→ʊ, ʀ→r, -t, s→ts, e→ə, øː→ø, ɾ→r, kʰ→k, tʰ→t, ɪ→iː, ɲ→n, ɪ→uː, -tʰ, eː→iː, +ɛ, aj→aɪ",0.40476190476190477,False,3.4609375,42,41
+Ein Feuerwehrmann findet keinen Hydranten.,22,12,"-ɛ, ɪ→aɪ, +j, ɐ→ɜ, ɐ→ɛ, +ɾ, +y, d→t, ʁ→r, +t, tʰ→ə, n̩→n",0.4,False,2.849609375,30,33
+Was sagst du da?,7,4,"aː→a, +uː, ː→d, ː→ɑː",0.4,False,1.3701171875,10,11
+Zuerst sollten alle Beweise gesichert werden.,23,14,"-t, s→ts, u→uː, ɐ→ɾ, +ə, n̩→n, -a, e→aɪ, -ɛ, ɾ→ɜ, eː→ɛ, ɐ→ɾ, +ə, n̩→n",0.4,False,2.779296875,35,34
+Vielleicht reicht es ja noch für Silber.,16,10,"i→iː, ɾ→r, -a, e→aɪ, eː→ɛ, +j, ː→a, yː→y, ɐ→ɾ, ɐ→ə",0.4,False,2.619140625,25,25
+Und wieder gerät der Nachschub ins Hintertreffen.,24,14,"ɐ→ɜ, ɾ→r, ɛː→ɛ, +ə, d→t, eː→ə, +d, ɐ→ɛ, +ɾ, a→ɑː, ç→h, tʰ→t, ɐ→ɜ, ʁ→ɾ",0.4,False,3.23046875,35,38
+Strg loslassen,11,6,"ɛ→ɪ, +t, eː→iː, eː→iː, +ə, n̩→n",0.4,False,1.830078125,15,17
+Würden Sie einen Tramper mitnehmen?,17,10,"ʁ→y, +ɾ, n̩→ə, z→n, iː→z, a→iː, e→aɪ, a→ɛ, +ɜ, ɐ→ɾ",0.4,False,2.0390625,25,27
+Starte Aufnahme für dreiundvierzig Sekunden,23,14,"-a, ɾ→ɑː, -a, o→aʊ, ɑ→ɑː, ɐ→ɾ, +ɾ, ʁ→r, aj→aɪ, ʁ→ɾ, ç→k, e→eː, +ə, n̩→n",0.4,False,3.66015625,35,35
+erwachsenen,8,4,"ɛː→ɛ, ɐ→ɾ, +n, +d",0.4,False,0.93017578125,10,12
+Da braut sich was zusammen.,13,8,"+d, ː→ɑː, ʁ→r, -a, o→aʊ, -t, s→ts, u→uː",0.4,False,1.8896484375,20,19
+Helles Orange,6,4,"-l, ə→ɪ, ː→ɑ̃, ʃ→ʒ",0.4,False,1.33984375,10,9
+So steht Afghanistan immer auf Platz eins.,19,12,"e→eː, a→aʊ, +ɡ, k→ɑː, a→ɾ, a→ɑː, ɐ→ɜ, -t, s→ts, -a, e→aɪ, -s",0.4,False,3.08984375,30,28
+"Nein, aber ohne.",6,4,"ɑː→a, -e, ɾ→ɚ, oː→uː",0.4,False,1.3095703125,10,9
+"Bist du gut darin, Leute zu verkuppeln?",20,12,"+t, +d, ː→uː, ɾ→r, ɔ→aʊ, -t, s→ts, ɛː→ɛ, ɐ→ɾ, -p, ɛ→ə, -l",0.4,False,2.8203125,30,29
+"Da kann ich nicht, weil wir da ein Treffen der Wohngemeinschaft abhalten.",33,21,"+d, ː→ɑː, ɐ→ɾ, ː→d, ɛ→ɑː, ɪ→aɪ, ɾ→r, -f, eː→ɛ, ɐ→ɾ, o→oː, ŋ→n, -e, m→ɡ, a→ə, -e, n→m, -s, t→aɪ, s→n, h→ʃ",0.39622641509433965,False,4.58984375,53,50
+"Meine Oma hat zwar einen Hühnerstall, aber kein Motorrad.",26,17,"a→ɑː, -t, s→ts, -aː, ɐ→ɑː, a→ɾ, e→aɪ, yː→y, ɐ→ɜ, ɑː→a, -e, ɾ→ɜ, oː→ʊ, ɔ→oː, -ɾ, ɾ→r, ɑ→a",0.3953488372093023,False,4.1796875,43,39
+Jetzt haben wir wieder so Schnulzen in unserem Repertoir.,30,17,"-t, aː→a, ɐ→ɾ, ɐ→ɛ, +ɾ, -t, s→ts, ɐ→ə, +r, ʁ→r, pʰ→p, +ɾ, ʁ→t, tʰ→w, ɔ→a, +ɑː, ɐ→ɾ",0.3953488372093023,False,3.890625,43,45
+Der Home Assistant Server scheint offline zu sein.,23,15,"eː→ɛ, ɐ→ɾ, ɔ→oː, -a, a→ə, -z, ɛ→ɚ, ɐ→ɚ, -a, e→aɪ, -f, ɪ→aɪ, -ə, -t, s→ts",0.39473684210526316,False,4.1015625,38,32
+Aufnahme von Audio für neun Sekunden,18,11,"-a, o→aʊ, ɑ→ɑː, ɪ→iː, ɔ→oː, ɐ→ɾ, -ɔ, ɪ→aʊ, e→eː, +ə, n̩→n",0.39285714285714285,False,3.01953125,28,27
+"Ergebt euch, ihr seid umzingelt!",14,9,"ɛː→ɛ, ɐ→ɾ, ə→iː, -ɔ, ø→oʊ, ɐ→ɾ, -t, s→ts, ɛ→ə",0.391304347826087,False,2.619140625,23,21
+Dem Baby verabreicht man Fiebermittel als Zäpfchen.,26,16,"m→n, ɑː→eː, b→l, j→b, +iː, ɛː→ɛ, ɐ→ɾ, ɾ→r, -a, e→aɪ, -ɛ, ɾ→ɜ, e→ə, -l, -t, s→ts",0.3902439024390244,True,3.900390625,41,38
+Der Bibliothekar ist ein in fast jeder Hinsicht unangenehmer Zeitgenosse.,37,23,"eː→ɛ, ɐ→ɾ, ɪ→iː, ɪ→iː, ɔ→oː, tʰ→t, ɛ→eː, kʰ→k, -aː, ɐ→ɑː, -ɛ, ɪ→aɪ, aː→a, +t, ɐ→ɜ, e→eː, -ɐ, t→ɜ, s→ts, -a, e→aɪ, e→ə, -z",0.3898305084745763,False,7.23828125,59,55
+Voll der gute Vergleich!,11,7,"eː→ɛ, ɐ→ɾ, e→ə, ɛː→ɛ, ɐ→ɾ, -a, e→aɪ",0.3888888888888889,False,1.419921875,18,17
+Man bräuchte ein Gegengewicht auf der gegenüberliegenden Seite.,32,19,"+ə, ʁ→r, ɔ→aʊ, tʰ→t, -ɛ, ɪ→aɪ, ə→eː, ŋ→n, +ɡ, eː→ə, eː→ɛ, ɐ→ɾ, ə→eː, yː→uː, -ɛ, ɾ→ɜ, ɛ→ə, -ə, iː→aɪ",0.3877551020408163,False,3.880859375,49,48
+"Egon hat sie zwar nicht gesehen, aber er erkennt die Harley am Geräusch.",32,19,"ɛ→iː, oː→ɔ, -t, s→ts, aː→ɑː, ɐ→ɾ, +t, -e, ɾ→ɜ, eː→ɛ, ɐ→ɾ, ɛː→ɛ, ɐ→ɾ, -n, aː→ɑː, +l, ɪ→eː, ʁ→r, ɔ→oɪ",0.3877551020408163,False,4.76953125,49,48
+könntest du mich am Donnerstag erinnern,19,12,"œ→ə, t→d, ː→uː, -n, ɛ→a, -ɾ, ɑ→a, ɛː→ɛ, ɐ→ɾ, -n, ɛ→ə, -ɾ",0.3870967741935484,False,2.279296875,31,27

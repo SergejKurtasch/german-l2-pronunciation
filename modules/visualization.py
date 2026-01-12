@@ -5,6 +5,37 @@ Visualization module for displaying pronunciation analysis results.
 from typing import List, Dict, Tuple, Optional
 
 
+def collapse_consecutive_duplicates(phonemes: List[str]) -> List[str]:
+    """
+    Collapse consecutive duplicate phonemes (same logic as CTC collapse).
+    This ensures that expected and recognized phonemes are processed consistently.
+    
+    Args:
+        phonemes: List of phoneme strings
+        
+    Returns:
+        List of phonemes with consecutive duplicates collapsed
+    """
+    if not phonemes:
+        return phonemes
+    
+    collapsed = []
+    prev_phoneme = None
+    
+    for phoneme in phonemes:
+        # Skip empty phonemes
+        if not phoneme or not phoneme.strip():
+            continue
+        
+        # If different from previous, add it
+        if phoneme != prev_phoneme:
+            collapsed.append(phoneme)
+            prev_phoneme = phoneme
+        # If same as previous, skip it (CTC collapse)
+    
+    return collapsed
+
+
 def create_side_by_side_comparison(
     expected_phonemes: List[str],
     recognized_phonemes: List[str],
@@ -133,52 +164,217 @@ def create_side_by_side_comparison(
 def create_colored_text(
     text: str,
     aligned_pairs: List[Dict],
-    char_to_phoneme_map: Optional[Dict[int, int]] = None
+    expected_phonemes_dict: Optional[List[Dict]] = None,
+    aligned_pairs_tuples: Optional[List[Tuple[Optional[str], Optional[str]]]] = None
 ) -> str:
     """
-    Create colored text visualization.
+    Create colored text visualization based on Expected phonemes colors.
+    Uses a 3D mapping: (text_char, phoneme, color) for precise character-to-phoneme alignment.
+    Text coloring matches the colors used for Expected phonemes in side-by-side comparison.
     
     Args:
         text: Original text
-        aligned_pairs: List of dictionaries with alignment results
-        char_to_phoneme_map: Optional mapping from character index to phoneme index
+        aligned_pairs: List of dictionaries with alignment results (for backward compatibility)
+        expected_phonemes_dict: List of expected phoneme dictionaries with 'text_char' and 'phoneme' fields
+        aligned_pairs_tuples: List of aligned pairs (expected, recognized) tuples for color determination
         
     Returns:
         HTML string with colored text
     """
-    # Create mapping if not provided
-    if char_to_phoneme_map is None:
-        char_to_phoneme_map = {}
-        phoneme_idx = 0
-        for i, char in enumerate(text):
-            if char.isalnum() and not char.isspace():
-                if phoneme_idx < len(aligned_pairs):
-                    char_to_phoneme_map[i] = phoneme_idx
-                    phoneme_idx += 1
+    # Use aligned_pairs_tuples if provided, otherwise extract from aligned_pairs
+    if aligned_pairs_tuples is None:
+        # Extract tuples from dict format
+        aligned_pairs_tuples = []
+        for pair in aligned_pairs:
+            exp = pair.get('expected', None)
+            rec = pair.get('recognized', None)
+            aligned_pairs_tuples.append((exp, rec))
     
+    if not expected_phonemes_dict or not aligned_pairs_tuples:
+        # Fallback: return uncolored text
+        return f"<div style='font-size: 18px; line-height: 1.8;'>{text}</div>"
+    
+    # Step 1: Build 3D mapping structure: (text_char, phoneme, color)
+    # First, build list of expected phonemes from dict (before collapse) with position info
+    expected_phonemes_list = []
+    for ph_dict in expected_phonemes_dict:
+        phoneme = ph_dict.get('phoneme', '')
+        text_char = ph_dict.get('text_char', '')
+        position = ph_dict.get('position', 0)
+        if phoneme and phoneme != '||':  # Skip word boundaries
+            expected_phonemes_list.append({
+                'phoneme': phoneme,
+                'text_char': text_char,
+                'position': position
+            })
+    
+    # Step 2: Apply CTC collapse to expected phonemes (same as in app.py)
+    phoneme_strings = [ph_info['phoneme'] for ph_info in expected_phonemes_list]
+    collapsed_phoneme_strings = collapse_consecutive_duplicates(phoneme_strings)
+    
+    # Step 3: Rebuild list with collapsed phonemes, preserving text_char and position info
+    collapsed_expected_phonemes = []
+    prev_phoneme = None
+    for ph_info in expected_phonemes_list:
+        ph = ph_info['phoneme']
+        if ph != prev_phoneme:
+            collapsed_expected_phonemes.append(ph_info)
+            prev_phoneme = ph
+    
+    # Step 4: Build mapping from collapsed expected phoneme to its color
+    collapsed_ph_to_color = {}
+    aligned_idx = 0  # Current position in aligned_pairs
+    
+    # Go through collapsed expected phonemes in order and match them with aligned_pairs
+    for collapsed_ph_idx, expected_ph_info in enumerate(collapsed_expected_phonemes):
+        expected_ph = expected_ph_info['phoneme']
+        
+        # Find this phoneme in aligned_pairs starting from current position
+        found = False
+        while aligned_idx < len(aligned_pairs_tuples):
+            exp_ph, rec_ph = aligned_pairs_tuples[aligned_idx]
+            
+            if exp_ph == expected_ph:
+                # Found matching expected phoneme - determine its color
+                is_word_boundary = (exp_ph == '||' or rec_ph == '||')
+                
+                if exp_ph == rec_ph:
+                    color = 'green'  # Perfect match
+                elif is_word_boundary:
+                    if exp_ph == '||' and rec_ph == '||':
+                        color = 'green'
+                    elif exp_ph == '||' and rec_ph is None:
+                        color = 'orange'
+                    elif rec_ph == '||' and exp_ph is None:
+                        color = 'blue'
+                    else:
+                        color = 'orange'
+                elif rec_ph is None:
+                    color = 'orange'  # Missing phoneme
+                elif exp_ph is None:
+                    color = 'blue'  # Extra phoneme
+                else:
+                    color = 'red'  # Mismatch
+                
+                # Map this collapsed phoneme to its color
+                collapsed_ph_to_color[collapsed_ph_idx] = color
+                aligned_idx += 1
+                found = True
+                break
+            elif exp_ph is None or exp_ph == '||':
+                # Gap or word boundary in aligned_pairs, skip
+                aligned_idx += 1
+            else:
+                # Different phoneme - this shouldn't happen if collapse is consistent
+                # But advance to avoid infinite loop
+                aligned_idx += 1
+        
+        if not found:
+            # Phoneme not found in aligned_pairs - use default color (shouldn't happen)
+            collapsed_ph_to_color[collapsed_ph_idx] = 'gray'
+    
+    # Step 5: Build 3D mapping: char_position -> (phoneme, color)
+    # Map each character position in text to its corresponding phoneme and color
+    import re
+    
+    # Split text into tokens while preserving their positions
+    tokens_with_positions = []
+    for match in re.finditer(r"[\w']+|[^\w\s]", text):
+        token = match.group()
+        start_pos = match.start()
+        tokens_with_positions.append({
+            'token': token,
+            'start_pos': start_pos,
+            'end_pos': start_pos + len(token)
+        })
+    
+    # Build mapping: char_index -> color
+    char_to_color = {}
+    
+    # Group collapsed phonemes by their text_char (token)
+    # Create mapping that handles both with and without punctuation
+    phonemes_by_token = {}
+    for i, ph_info in enumerate(collapsed_expected_phonemes):
+        text_char = ph_info['text_char']
+        # Normalize token for matching (remove punctuation for comparison)
+        text_char_clean = re.sub(r'[^\w]', '', text_char)
+        if text_char_clean not in phonemes_by_token:
+            phonemes_by_token[text_char_clean] = []
+        phonemes_by_token[text_char_clean].append({
+            'index': i,
+            'phoneme': ph_info['phoneme'],
+            'text_char': text_char,
+            'text_char_clean': text_char_clean
+        })
+    
+    # For each token, find its phonemes and map characters to colors
+    for token_info in tokens_with_positions:
+        token = token_info['token']
+        token_start = token_info['start_pos']
+        token_end = token_info['end_pos']
+        
+        # Normalize token for matching (remove punctuation)
+        token_clean = re.sub(r'[^\w]', '', token)
+        
+        # Find phonemes for this token using the mapping
+        token_phonemes = phonemes_by_token.get(token_clean, [])
+        
+        if token_phonemes:
+            # Get all characters in token (including punctuation)
+            token_chars = list(token)
+            # Get alphanumeric characters only for phoneme distribution
+            alnum_chars = [c for c in token if c.isalnum()]
+            
+            if alnum_chars:
+                # More accurate distribution: map phonemes to characters
+                # Use proportional distribution but ensure all characters get a color
+                num_phonemes = len(token_phonemes)
+                num_chars = len(alnum_chars)
+                
+                # Calculate how many phonemes per character (can be fractional)
+                if num_phonemes > 0 and num_chars > 0:
+                    phonemes_per_char = num_phonemes / num_chars
+                    
+                    alnum_idx = 0
+                    for i, char in enumerate(token_chars):
+                        char_pos_in_text = token_start + i
+                        
+                        if char.isalnum():
+                            # Map alphanumeric character to phoneme
+                            # Use floor to ensure we don't go out of bounds
+                            ph_idx = min(int(alnum_idx * phonemes_per_char), num_phonemes - 1)
+                            collapsed_ph_idx = token_phonemes[ph_idx]['index']
+                            if collapsed_ph_idx in collapsed_ph_to_color:
+                                char_to_color[char_pos_in_text] = collapsed_ph_to_color[collapsed_ph_idx]
+                            alnum_idx += 1
+                        else:
+                            # For punctuation within token, use color of the last phoneme
+                            # This ensures punctuation at the end of words gets colored
+                            last_ph_idx = token_phonemes[-1]['index']
+                            if last_ph_idx in collapsed_ph_to_color:
+                                char_to_color[char_pos_in_text] = collapsed_ph_to_color[last_ph_idx]
+            else:
+                # Token has no alphanumeric chars (only punctuation)
+                # Use color of first phoneme if available
+                if token_phonemes:
+                    first_ph_idx = token_phonemes[0]['index']
+                    if first_ph_idx in collapsed_ph_to_color:
+                        for i, char in enumerate(token_chars):
+                            char_pos_in_text = token_start + i
+                            char_to_color[char_pos_in_text] = collapsed_ph_to_color[first_ph_idx]
+    
+    # Step 6: Generate HTML with colored text
     html = "<div style='font-size: 18px; line-height: 1.8;'>"
     
     for i, char in enumerate(text):
         if char.isspace():
+            # Don't color spaces
             html += char
-        elif i in char_to_phoneme_map:
-            phoneme_idx = char_to_phoneme_map[i]
-            if phoneme_idx < len(aligned_pairs):
-                pair = aligned_pairs[phoneme_idx]
-                is_correct = pair.get('is_correct', False)
-                is_missing = pair.get('is_missing', False)
-                
-                if is_missing:
-                    color = 'gray'
-                elif is_correct:
-                    color = 'green'
-                else:
-                    color = 'red'
-                
-                html += f"<span style='color: {color}; font-weight: bold;'>{char}</span>"
-            else:
-                html += char
+        elif i in char_to_color:
+            color = char_to_color[i]
+            html += f"<span style='color: {color}; font-weight: bold;'>{char}</span>"
         else:
+            # Character not mapped to any phoneme, leave uncolored
             html += char
     
     html += "</div>"
