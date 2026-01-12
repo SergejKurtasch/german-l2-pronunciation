@@ -64,6 +64,22 @@ NW_MATCH_SCORE = 1.0
 NW_MISMATCH_SCORE = -1.0
 NW_GAP_PENALTY = -1.0
 
+# Phoneme similarity matrix settings
+USE_PHONEME_SIMILARITY = True  # Use phonetic feature-based similarity matrix for alignment
+SIMILARITY_MATCH_THRESHOLD = 0.9  # Above this score = considered strong match
+SIMILARITY_PARTIAL_THRESHOLD = 0.6  # Above this score = considered partial match
+SIMILARITY_DEFAULT_MISMATCH = -1.0  # Score for completely different phoneme classes
+
+# Feature weights for similarity calculation
+# These weights determine how much each phonetic feature contributes to similarity
+FEATURE_WEIGHT_VOICING = 0.25  # Weight for voicing feature (voiced vs voiceless)
+FEATURE_WEIGHT_PLACE = 0.35  # Weight for place of articulation (bilabial, alveolar, etc.)
+FEATURE_WEIGHT_MANNER = 0.30  # Weight for manner of articulation (plosive, fricative, etc.)
+FEATURE_WEIGHT_LENGTH = 0.10  # Weight for vowel length (short vs long)
+FEATURE_WEIGHT_HEIGHT = 0.30  # Weight for vowel height (open, mid, close)
+FEATURE_WEIGHT_BACKNESS = 0.35  # Weight for vowel backness (front, central, back)
+FEATURE_WEIGHT_ROUNDING = 0.20  # Weight for vowel rounding (rounded vs unrounded)
+
 # VAD settings - ULTRA conservative to avoid cutting off quiet speech at the end
 VAD_PADDING_MS = 1000  # Very large padding before and after speech (milliseconds) - ultra conservative
 VAD_PADDING_END_MS = 1500  # Extra padding at the END to protect last words (milliseconds)
@@ -96,7 +112,7 @@ GERMAN_IPA_PHONEMES = [
     'aɪ̯', 'aʊ̯', 'ɔʏ̯',
     # Consonants
     'b', 'p', 'd', 't', 'g', 'k', 'kʰ', 'f', 'v', 's', 'z', 'ʃ', 'ʒ', 'ç', 'x', 'h',
-    'j', 'l', 'm', 'n', 'ŋ', 'ʁ', 'ɐ',
+    'j', 'l', 'm', 'n', 'ŋ', 'ʁ', 'ɐ', 'ʔ',
     # Affricates
     'pf', 'ts', 'tʃ', 'dʒ',
 ]

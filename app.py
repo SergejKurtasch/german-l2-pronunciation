@@ -173,11 +173,15 @@ def collapse_consecutive_duplicates(phonemes: List[str]) -> List[str]:
     Collapse consecutive duplicate phonemes (same logic as CTC collapse).
     This ensures that expected and recognized phonemes are processed consistently.
     
+    Word boundary marker '||' prevents collapse across word boundaries:
+    - Example: ['a', 'n', 'a', '||', 'a', 'p', 'f', 'ə', 'l'] 
+    - Result: ['a', 'n', 'a', '||', 'a', 'p', 'f', 'ə', 'l'] (two 'a' preserved)
+    
     Args:
-        phonemes: List of phoneme strings
+        phonemes: List of phoneme strings (may include '||' boundary markers)
         
     Returns:
-        List of phonemes with consecutive duplicates collapsed
+        List of phonemes with consecutive duplicates collapsed (preserving boundaries)
     """
     if not phonemes:
         return phonemes
@@ -188,6 +192,13 @@ def collapse_consecutive_duplicates(phonemes: List[str]) -> List[str]:
     for phoneme in phonemes:
         # Skip empty phonemes
         if not phoneme or not phoneme.strip():
+            continue
+        
+        # Word boundary marker: add it and reset prev_phoneme
+        # This allows the same phoneme to appear after boundary without being collapsed
+        if phoneme == '||':
+            collapsed.append(phoneme)
+            prev_phoneme = None  # Reset to allow same phoneme after boundary
             continue
         
         # If different from previous, add it
@@ -745,13 +756,15 @@ def process_pronunciation(
             
             # Stage 6: Needleman-Wunsch Alignment
             # Use raw_phonemes directly - model already outputs accurate IPA phonemes
+            # Now using phoneme similarity matrix for more accurate alignment
             nw_start = time.time()
             aligned_pairs, alignment_score = needleman_wunsch_align(
                 expected_phonemes,
                 raw_phonemes,
                 match_score=config.NW_MATCH_SCORE,
                 mismatch_score=config.NW_MISMATCH_SCORE,
-                gap_penalty=config.NW_GAP_PENALTY
+                gap_penalty=config.NW_GAP_PENALTY,
+                use_similarity_matrix=config.USE_PHONEME_SIMILARITY
             )
             nw_elapsed = (time.time() - nw_start) * 1000
             # #region agent log

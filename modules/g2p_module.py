@@ -189,12 +189,13 @@ class DSLG2P:
                     i += 3
                     matched = True
             
-            # 2-character phonemes
+            # 2-character phonemes (WITHOUT affricates - they should be separate)
             if not matched and i + 2 <= len(cleaned):
                 two_char = cleaned[i:i+2]
-                # Check for long vowels, diphthongs, affricates, aspirated consonants
+                # Long vowels, diphthongs, aspirated consonants ONLY
+                # REMOVED affricates: pf, ts, tʃ, dʒ, d͡ʒ, t͜s, d͜ʒ
                 if two_char in ['aː', 'eː', 'iː', 'oː', 'uː', 'yː', 'øː', 'ɛː',
-                               'aɪ', 'aʊ', 'ɔʏ', 'pf', 'ts', 'tʃ', 'dʒ', 'd͡ʒ', 't͜s', 'd͜ʒ',
+                               'aɪ', 'aʊ', 'ɔʏ',
                                'tʰ', 'pʰ', 'kʰ']:
                     phonemes.append(two_char)
                     i += 2
@@ -664,15 +665,14 @@ class G2PConverter:
         # Remove stress marks but preserve combining characters for now
         cleaned = phoneme_string.replace('ˈ', '').replace('ˌ', '')
         
-        # All German multi-character phonemes (affricates, diphthongs, long vowels)
+        # All German multi-character phonemes (diphthongs, long vowels, aspirated)
         # Note: eSpeak may output these with or without combining characters (̯)
+        # REMOVED affricates - they should be separate phonemes: pf, ts, tʃ, dʒ
         multi_char_phonemes = [
             # Diphthongs (with and without combining character)
             'aɪ', 'aɪ̯', 'aʊ', 'aʊ̯', 'ɔʏ', 'ɔʏ̯',
             # Long vowels
             'aː', 'eː', 'iː', 'oː', 'uː', 'yː', 'øː', 'ɛː',
-            # Affricates
-            'pf', 'ts', 'tʃ', 'dʒ',
             # Aspirated consonants (with modifier letter ʰ)
             'tʰ', 'pʰ', 'kʰ',
         ]
@@ -783,6 +783,7 @@ class G2PConverter:
 
         all_expected_phonemes = []
         current_char_pos = 0
+        word_count = 0  # Track number of words processed
         
         # #region agent log
         token_processing_start = time.time()
@@ -921,6 +922,20 @@ class G2PConverter:
                         'position': token_pos,
                         'text_char': token,
                         'source': source or 'unknown'
+                    })
+                
+                # Add word boundary marker after this word (but not after the last word)
+                word_count += 1
+                # Check if this is not the last word (peek ahead for more alphanumeric tokens)
+                remaining_tokens = tokens[tokens.index(token) + 1:]
+                has_more_words = any(t[0].isalnum() for t in remaining_tokens)
+                
+                if has_more_words:
+                    all_expected_phonemes.append({
+                        'phoneme': '||',
+                        'position': token_pos + len(token),
+                        'text_char': ' ',  # Represents word boundary
+                        'source': 'boundary'
                     })
             
             current_char_pos = token_pos + len(token)

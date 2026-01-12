@@ -11,81 +11,121 @@ def create_side_by_side_comparison(
     aligned_pairs: List[Tuple[Optional[str], Optional[str]]]
 ) -> str:
     """
-    Create side-by-side comparison of expected and recognized phonemes.
+    Create side-by-side comparison of expected and recognized phonemes using alignment.
+    Shows two rows: expected phonemes on top, recognized phonemes below with color coding.
     
     Args:
-        expected_phonemes: List of expected phoneme strings
-        recognized_phonemes: List of recognized phoneme strings
-        aligned_pairs: List of aligned pairs from Needleman-Wunsch
+        expected_phonemes: List of expected phoneme strings (not used, kept for compatibility)
+        recognized_phonemes: List of recognized phoneme strings (not used, kept for compatibility)
+        aligned_pairs: List of aligned pairs from Needleman-Wunsch [(expected, recognized), ...]
         
     Returns:
-        HTML string with side-by-side comparison
+        HTML string with two-row aligned comparison
+        
+    Color coding:
+        - Green: phonemes match
+        - Yellow: expected phoneme is missing (gap in recognized)
+        - Red: phonemes differ
     """
-    # #region agent log
-    import json
-    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
-        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"J","location":"visualization.py:8","message":"create_side_by_side_comparison entry","data":{"expected_phonemes_count":len(expected_phonemes),"recognized_phonemes_count":len(recognized_phonemes),"aligned_pairs_count":len(aligned_pairs),"aligned_pairs_preview":aligned_pairs[:10],"none_in_recognized":sum(1 for exp, rec in aligned_pairs if rec is None)},"timestamp":int(__import__('time').time()*1000)})+'\n')
-    # #endregion
+    if not aligned_pairs:
+        return "<div style='color: gray;'>No alignment data available.</div>"
     
-    html = "<div style='font-family: monospace; font-size: 16px; line-height: 1.8;' data-block-id='side-by-side-comparison'>"
+    html = "<div style='font-family: monospace; font-size: 16px; line-height: 2.2; padding: 15px; background: #f8f9fa; border-radius: 5px;' data-block-id='side-by-side-comparison'>"
     
-    # Note: Expected phonemes are shown in the separate "Expected Phonemes" block
-    # Here we only show recognized phonemes with color coding based on alignment
-    
-    # Build mapping: track which positions in recognized_phonemes are correctly matched
-    # The key insight: aligned_pairs contains pairs (expected, recognized) in the order
-    # determined by Needleman-Wunsch alignment. When recognized is not None, it corresponds
-    # to a phoneme from the recognized_phonemes list in sequential order (gaps in expected
-    # don't affect the order of recognized phonemes).
-    
-    # Initialize all positions as not matched
-    match_status = [False] * len(recognized_phonemes)
-    
-    # Track current index in recognized_phonemes as we iterate through aligned_pairs
-    # aligned_pairs may contain gaps (None values), so we need to track the index carefully
-    recognized_list_idx = 0
-    
-    for expected, recognized in aligned_pairs:
-        if recognized is not None:
-            # This aligned pair has a recognized phoneme (not a gap in recognized sequence)
-            # Check if we haven't exceeded the recognized_phonemes list
-            if recognized_list_idx < len(recognized_phonemes):
-                # The recognized phoneme from alignment should match the one in the list at current position
-                # (assuming alignment is correct and order is preserved)
-                current_recognized = recognized_phonemes[recognized_list_idx]
-                
-                # Verify that the recognized phoneme in alignment matches the one in the list at this position
-                # This ensures we're comparing the right phoneme at the right position
-                if recognized == current_recognized:
-                    # Check if it also matches the expected phoneme (correct match)
-                    if expected is not None and expected == recognized:
-                        match_status[recognized_list_idx] = True
-                # Move to next position in recognized_phonemes regardless of match
-                # (we've processed this recognized phoneme)
-                recognized_list_idx += 1
-            # If we've exceeded the list, stop processing (shouldn't happen in correct alignment)
-    
-    html += "<div>"
-    recognized_row_content = []
-    # Show all recognized phonemes from the original list with color coding based on position
-    for i, ph in enumerate(recognized_phonemes):
-        # Check if this position was correctly matched in alignment
-        is_matched = match_status[i] if i < len(match_status) else False
-        color = 'green' if is_matched else 'red'
-        html += f"<span style='color: {color}; padding: 2px 4px;'>{ph}</span> "
-        recognized_row_content.append(ph)
-    
+    # Add legend at the top
+    html += "<div style='margin-bottom: 15px; padding: 10px; background: #fff; border-radius: 4px; font-size: 12px;'>"
+    html += "<strong>Legend:</strong> "
+    html += "<span style='color: green; margin-left: 10px;'>● Match</span> "
+    html += "<span style='color: orange; margin-left: 10px;'>● Missing</span> "
+    html += "<span style='color: red; margin-left: 10px;'>● Mismatch</span> "
+    html += "<span style='color: blue; margin-left: 10px;'>● Extra</span> "
+    html += "<span style='color: #999; margin-left: 10px;'>Double space = Word boundary</span>"
     html += "</div>"
     
-    html += "</div>"
+    # Build two rows: expected (top) and recognized (bottom)
+    expected_row = []
+    recognized_row = []
     
-    # #region agent log
-    recognized_row_str = ' '.join(recognized_row_content)
-    import re
-    dash_positions = [m.start() for m in re.finditer(r'-', html)]
-    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
-        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"K","location":"visualization.py:46","message":"create_side_by_side_comparison before return","data":{"html_full":html,"recognized_row_str":recognized_row_str,"html_has_dash":'-' in html,"dash_count":html.count('-'),"dash_positions":dash_positions[:30],"recognized_row_dash_count":recognized_row_str.count('-')},"timestamp":int(__import__('time').time()*1000)})+'\n')
-    # #endregion
+    for idx, (expected_ph, recognized_ph) in enumerate(aligned_pairs):
+        # Check if this is a word boundary position (either side has '||')
+        is_word_boundary = (expected_ph == '||' or recognized_ph == '||')
+        
+        # Handle word boundary markers - show as double space
+        # If one side is '||', both sides should show double space (even if other is None)
+        if not is_word_boundary:
+            if expected_ph is None:
+                exp_display = '-'
+            else:
+                exp_display = expected_ph
+            
+            if recognized_ph is None:
+                rec_display = '-'
+            else:
+                rec_display = recognized_ph
+        
+        # Determine color based on alignment
+        if expected_ph == recognized_ph and expected_ph is not None:
+            # Perfect match (including word boundaries)
+            color = 'green'
+        elif is_word_boundary:
+            # Word boundary mismatch (one side has '||', other has None or different)
+            if expected_ph == '||' and recognized_ph == '||':
+                color = 'green'  # Both are boundaries - perfect match
+            elif expected_ph == '||' and recognized_ph is None:
+                color = 'orange'  # Missing word boundary in recognized
+            elif recognized_ph == '||' and expected_ph is None:
+                color = 'blue'  # Extra word boundary in recognized
+            else:
+                color = 'orange'  # Word boundary mismatch
+        elif recognized_ph is None:
+            # Gap in recognized sequence (missing phoneme)
+            color = 'orange'
+        elif expected_ph is None:
+            # Gap in expected sequence (extra phoneme)
+            color = 'blue'
+        else:
+            # Mismatch
+            color = 'red'
+        
+        # Add to rows with no gaps between phonemes
+        # Use inline-block with font-size: 0 on parent to remove gaps, then restore font-size inside
+        # Both rows use same font size and weight for consistency
+        if is_word_boundary:
+            # Word boundary - add double space using two separate spans with min-width
+            # Use regular space character with min-width to ensure visibility
+            # Each span has min-width to create visible space even with font-size: 0 on parent
+            expected_row.append(f"<span style='display: inline-block; color: {color}; font-size: 16px; font-weight: normal; min-width: 0.5em; white-space: pre;'> </span><span style='display: inline-block; color: {color}; font-size: 16px; font-weight: normal; min-width: 0.5em; white-space: pre;'> </span>")
+            recognized_row.append(f"<span style='display: inline-block; color: {color}; font-size: 16px; font-weight: normal; min-width: 0.5em; white-space: pre;'> </span><span style='display: inline-block; color: {color}; font-size: 16px; font-weight: normal; min-width: 0.5em; white-space: pre;'> </span>")
+        else:
+            # Regular phoneme - add colored background, no margin/padding that creates gaps
+            expected_row.append(f"<span style='display: inline-block; color: {color}; background: {color}10; padding: 2px 0; font-size: 16px; font-weight: normal;'>{exp_display}</span>")
+            recognized_row.append(f"<span style='display: inline-block; color: {color}; background: {color}15; padding: 2px 0; font-size: 16px; font-weight: normal;'>{rec_display}</span>")
+    
+    # Split long sequences into chunks to fit screen width
+    # Estimate: each phoneme is ~30-40px wide, screen is typically 1200-1920px
+    # Use ~50 phonemes per line as a safe estimate
+    CHUNK_SIZE = 50
+    total_pairs = len(expected_row)
+    
+    # Build HTML with multiple pairs of rows if needed
+    for chunk_start in range(0, total_pairs, CHUNK_SIZE):
+        chunk_end = min(chunk_start + CHUNK_SIZE, total_pairs)
+        expected_chunk = expected_row[chunk_start:chunk_end]
+        recognized_chunk = recognized_row[chunk_start:chunk_end]
+        
+        # Expected phonemes row - normal background
+        html += "<div style='margin-bottom: 5px; padding: 8px; background: #ffffff; border-radius: 3px;'>"
+        html += "<div style='color: #495057; font-size: 13px; font-weight: bold; margin-bottom: 5px;'>Expected phonemes:</div>"
+        html += "<div style='font-size: 0; white-space: pre; overflow-x: auto;'>" + "".join(expected_chunk) + "</div>"
+        html += "</div>"
+        
+        # Recognized phonemes row - light gray background
+        html += "<div style='margin-bottom: 15px; padding: 8px; background: #e9ecef; border-radius: 3px;'>"
+        html += "<div style='color: #495057; font-size: 13px; font-weight: bold; margin-bottom: 5px;'>Recognized phonemes:</div>"
+        html += "<div style='font-size: 0; white-space: pre; overflow-x: auto;'>" + "".join(recognized_chunk) + "</div>"
+        html += "</div>"
+    
+    html += "</div>"
     
     return html
 
@@ -482,8 +522,12 @@ def create_simple_phoneme_comparison(
         f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"visualization.py:416","message":"create_simple_phoneme_comparison entry","data":{"expected_phonemes":expected_phonemes,"recognized_phonemes":recognized_phonemes,"expected_count":len(expected_phonemes),"recognized_count":len(recognized_phonemes)},"timestamp":int(__import__('time').time()*1000)})+'\n')
     # #endregion
     
-    expected_str = ' '.join(expected_phonemes)
-    recognized_str = ' '.join(recognized_phonemes)
+    # Filter out word boundary markers and replace with visible separator
+    def format_phoneme(ph: str) -> str:
+        return '|' if ph == '||' else ph
+    
+    expected_str = ' '.join(format_phoneme(ph) for ph in expected_phonemes)
+    recognized_str = ' '.join(format_phoneme(ph) for ph in recognized_phonemes)
     
     # #region agent log
     with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
@@ -588,7 +632,7 @@ def create_raw_phonemes_display(raw_phonemes: List[str]) -> str:
     Create display for raw phonemes (before filtering).
     
     Args:
-        raw_phonemes: List of raw phoneme strings (before filtering)
+        raw_phonemes: List of raw phoneme strings (before filtering, may include '||' markers)
         
     Returns:
         HTML string with raw phonemes display
@@ -596,7 +640,11 @@ def create_raw_phonemes_display(raw_phonemes: List[str]) -> str:
     if not raw_phonemes:
         return "<div style='color: gray; padding: 10px;'>No raw phonemes available.</div>"
     
-    raw_str = ' '.join(raw_phonemes)
+    # Format phonemes: replace '||' with visible separator
+    def format_phoneme(ph: str) -> str:
+        return '|' if ph == '||' else ph
+    
+    raw_str = ' '.join(format_phoneme(ph) for ph in raw_phonemes)
     
     html = "<div style='padding: 10px; background: #f0f0f0; border-radius: 5px; border-left: 4px solid #6c757d;'>"
     html += "<h5 style='color: #2c3e50; margin-top: 0;'>Raw Phonemes (Before Filtering)</h5>"

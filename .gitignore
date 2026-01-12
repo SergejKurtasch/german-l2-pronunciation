@@ -1,4 +1,5 @@
 .cursor/
+cursor_scripts/
 */.cache/
 *.log
 secrets.env

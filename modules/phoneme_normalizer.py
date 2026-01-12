@@ -29,7 +29,6 @@ class PhonemeNormalizer:
         self.phoneme_mapping: Dict[str, str] = {}
         self.diacritics_to_remove: Set[str] = set()
         self.suprasegmentals_to_remove: Set[str] = set()
-        self.affricates_expansion: Dict[str, str] = {}
         self.chars_to_remove: Set[str] = set()
         
         self._load_table()
@@ -60,35 +59,66 @@ class PhonemeNormalizer:
                 if info.get('decision') == 'remove':
                     self.suprasegmentals_to_remove.add(char)
             
-            # Extract affricates expansion rules
-            self.affricates_expansion = self.normalization_table.get('affricates_expansion', {})
-            
             # Extract characters to remove from dictionaries
             chars_to_remove_list = self.normalization_table.get('chars_to_remove_from_dicts', [])
             self.chars_to_remove = {item.get('char', '') for item in chars_to_remove_list if item.get('char')}
+            
+            # Extract invalid patterns for validation
+            invalid_patterns = self.normalization_table.get('invalid_patterns', [])
             
             print(f"Loaded phoneme normalization table from {self.table_path}")
             print(f"  - Phoneme mappings: {len(self.phoneme_mapping)}")
             print(f"  - Diacritics to remove: {len(self.diacritics_to_remove)}")
             print(f"  - Suprasegmentals to remove: {len(self.suprasegmentals_to_remove)}")
-            print(f"  - Affricates expansion rules: {len(self.affricates_expansion)}")
+            print(f"  - Invalid patterns: {len(invalid_patterns)}")
             print(f"  - Characters to remove: {len(self.chars_to_remove)}")
             
         except Exception as e:
             print(f"Error loading normalization table: {e}")
             print("Phoneme normalization will be skipped.")
     
+    def _is_valid_transcription(self, transcription: str) -> bool:
+        """
+        Validate transcription for invalid patterns.
+        Returns False if transcription contains OCR errors or corrupted data.
+        
+        Args:
+            transcription: Raw transcription string to validate
+            
+        Returns:
+            True if valid, False if contains invalid patterns
+        """
+        if not self.normalization_table:
+            return True
+        
+        invalid_patterns = self.normalization_table.get('invalid_patterns', [])
+        
+        import re
+        for pattern in invalid_patterns:
+            if re.search(pattern, transcription):
+                return False
+        
+        # Check for suspicious capital letter sequences (except model vocabulary)
+        allowed_caps = {'N', 'S', 'X', 'Z'}
+        caps_sequence = re.findall(r'[A-Z]+', transcription)
+        for seq in caps_sequence:
+            if len(seq) >= 3 or (len(seq) >= 1 and set(seq) - allowed_caps):
+                return False
+        
+        return True
+    
     def normalize_phoneme_string(self, phoneme_string: str, source: str = 'dictionary') -> str:
         """
         Normalize a phoneme string according to the normalization table.
         
         This function applies:
-        1. Unicode normalization (NFC)
-        2. Phoneme mapping (g -> ɡ)
-        3. Remove combining characters from affricates (t͡s -> ts, t͜s -> ts)
-        4. Remove diacritics not in model
-        5. Remove suprasegmentals not in model
-        6. Remove characters not in model vocabulary
+        1. Validation (check for invalid patterns)
+        2. Unicode normalization (NFC)
+        3. Phoneme mapping (g -> ɡ, ˑ -> ː, etc.)
+        4. Remove combining characters from affricates (t͡s -> ts, t͜s -> ts)
+        5. Remove diacritics not in model
+        6. Remove suprasegmentals not in model
+        7. Remove characters not in model vocabulary
         
         Args:
             phoneme_string: Phoneme string to normalize
@@ -96,7 +126,7 @@ class PhonemeNormalizer:
                     Only 'dictionary' sources are normalized (model phonemes are kept as-is).
         
         Returns:
-            Normalized phoneme string
+            Normalized phoneme string (empty string if invalid)
         """
         # Strategy: Only normalize dictionary sources, not model sources
         if source != 'dictionary':
@@ -106,6 +136,10 @@ class PhonemeNormalizer:
         if not self.normalization_table:
             # If table not loaded, return as-is
             return phoneme_string
+        
+        # Step 0: Validate before normalization (only for dictionary sources)
+        if source == 'dictionary' and not self._is_valid_transcription(phoneme_string):
+            return ""  # Return empty string for invalid transcriptions
         
         # Step 1: Unicode normalization (NFC)
         normalized = unicodedata.normalize('NFC', phoneme_string)
@@ -147,43 +181,15 @@ class PhonemeNormalizer:
         Returns:
             List of normalized phoneme strings
         """
-        # #region agent log
-        import json, time
-        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
-            debug_f.write(json.dumps({"location":"phoneme_normalizer.py:normalize_phoneme_list","message":"Input phonemes","data":{"phonemes":phonemes,"has_t_h":any('tʰ' in ph or 't ʰ' in ph for ph in phonemes)},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"B"})+'\n')
-        # #endregion
-        
         normalized_list = []
         for phoneme in phonemes:
             normalized = self.normalize_phoneme_string(phoneme, source=source)
-            # Don't split affricates - they should remain as single phonemes
-            # Only split if there are actual spaces (shouldn't happen after our changes)
+            # If normalized phoneme contains spaces, split it into separate phonemes
             if ' ' in normalized:
-                # Check if it's an affricate that was incorrectly split
-                # If it matches pattern like "t s" or "d ʒ", join them back
                 parts = normalized.split()
-                if len(parts) == 2:
-                    # Check if it's a known affricate pattern
-                    affricate_patterns = [
-                        ('t', 's'), ('d', 'ʒ'), ('p', 'f')
-                    ]
-                    if (parts[0], parts[1]) in affricate_patterns:
-                        # Join back into single phoneme
-                        normalized = parts[0] + parts[1]
-                        normalized_list.append(normalized)
-                    else:
-                        # Not an affricate, split normally
-                        normalized_list.extend(parts)
-                else:
-                    # Multiple parts, split normally
-                    normalized_list.extend(parts)
+                normalized_list.extend([p for p in parts if p])  # Add non-empty parts
             elif normalized:  # Only add non-empty phonemes
                 normalized_list.append(normalized)
-        
-        # #region agent log
-        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
-            debug_f.write(json.dumps({"location":"phoneme_normalizer.py:normalize_phoneme_list","message":"Output normalized phonemes","data":{"normalized_list":normalized_list,"has_t_h":any('tʰ' in ph or 't ʰ' in ph for ph in normalized_list)},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"B"})+'\n')
-        # #endregion
         
         return normalized_list
     
