@@ -14,7 +14,9 @@ import sys
 import threading
 import time
 import json
+import os
 from typing import List, Dict, Optional, Tuple
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent
@@ -43,6 +45,61 @@ from modules.phoneme_validator import get_optional_validator
 from modules.speech_to_text import get_speech_recognizer
 from modules.metrics import calculate_wer, calculate_per
 from modules.mfa_alignment import get_mfa_aligner
+
+
+def validate_single_phoneme(task_data):
+    """
+    Wrapper function for parallel phoneme validation.
+    
+    Args:
+        task_data: Dictionary containing validation task parameters:
+            - audio_segment: Audio segment to validate
+            - phoneme_pair: Phoneme pair name
+            - expected_phoneme: Expected phoneme
+            - suspected_phoneme: Suspected phoneme
+            - index: Index in aligned_pairs
+            - segment_index: Index in recognized_segments
+    
+    Returns:
+        Dictionary with validation result and metadata:
+            - index: Original index in aligned_pairs
+            - segment_index: Index in recognized_segments
+            - validation_result: Result from validate_phoneme_segment
+    """
+    try:
+        validator = task_data['validator']
+        result = validator.validate_phoneme_segment(
+            task_data['audio_segment'],
+            phoneme_pair=task_data['phoneme_pair'],
+            expected_phoneme=task_data['expected_phoneme'],
+            suspected_phoneme=task_data['suspected_phoneme'],
+            sr=task_data['sr']
+        )
+        return {
+            'index': task_data['index'],
+            'segment_index': task_data['segment_index'],
+            'validation_result': result,
+            'expected_phoneme': task_data['expected_phoneme'],
+            'recognized_phoneme': task_data['suspected_phoneme'],
+            'phoneme_pair': task_data['phoneme_pair'],
+            'error': None
+        }
+    except Exception as e:
+        import traceback
+        return {
+            'index': task_data['index'],
+            'segment_index': task_data.get('segment_index', -1),
+            'validation_result': {
+                'is_correct': None,
+                'confidence': 0.0,
+                'error': str(e)
+            },
+            'expected_phoneme': task_data.get('expected_phoneme', ''),
+            'recognized_phoneme': task_data.get('suspected_phoneme', ''),
+            'phoneme_pair': task_data.get('phoneme_pair', ''),
+            'error': str(e)
+        }
+
 
 # Global instances
 # vad_detector = None  # VAD disabled
@@ -805,18 +862,21 @@ def process_pronunciation(
             aligned_pairs_before_validation = [(exp, rec) for exp, rec in aligned_pairs] if enable_validation else None
             diagnostic_results_before_validation = [dict(dr) for dr in diagnostic_results] if enable_validation else None
             
-            # Stage 9: Optional Validation
+            # Stage 9: Optional Validation (Parallelized)
             validation_start = time.time()
             validation_count = 0
             validation_corrected_count = 0
             if enable_validation and optional_validator:
                 # For each mismatch in aligned_pairs, try to validate with trained model
-                print(f"Optional validation enabled - checking {len(aligned_pairs)} aligned pairs")                
-                # Build index mapping from recognized phoneme to segments
-                # This helps when multiple segments have the same phoneme
-                segment_index = 0
+                print(f"Optional validation enabled - checking {len(aligned_pairs)} aligned pairs")
                 
-                for i, (expected_ph, recognized_ph) in enumerate(aligned_pairs):                    
+                # Step 1: Collect all validation tasks
+                validation_tasks = []
+                segment_index = 0
+                MIN_SEGMENT_LENGTH = 100  # samples
+                CONTEXT_MS = 100.0  # Use 100ms context window
+                
+                for i, (expected_ph, recognized_ph) in enumerate(aligned_pairs):
                     # Skip if match, missing (None), or word boundary
                     if expected_ph == recognized_ph or expected_ph is None or recognized_ph is None:
                         # Advance segment index if recognized phoneme exists
@@ -831,7 +891,7 @@ def process_pronunciation(
                     # Check if trained model exists for this phoneme pair
                     if optional_validator.has_trained_model(expected_ph, recognized_ph):
                         # Get proper phoneme pair name
-                        phoneme_pair = optional_validator.get_phoneme_pair(expected_ph, recognized_ph)                        
+                        phoneme_pair = optional_validator.get_phoneme_pair(expected_ph, recognized_ph)
                         if phoneme_pair is None:
                             print(f"Warning: Could not get phoneme pair for {expected_ph} -> {recognized_ph}")
                             segment_index += 1
@@ -846,14 +906,11 @@ def process_pronunciation(
                             # Extract audio segment
                             start_sample = int(segment.start_time * config.SAMPLE_RATE)
                             end_sample = int(segment.end_time * config.SAMPLE_RATE)
-                            audio_segment = waveform[start_sample:end_sample]
+                            audio_segment = waveform[start_sample:end_sample].copy()
                             
                             # Fallback for empty or very short segments (< 100 samples = ~6ms)
                             # This happens when forced aligner fails to determine boundaries (e.g., at end of audio)
-                            MIN_SEGMENT_LENGTH = 100  # samples
-                            CONTEXT_MS = 100.0  # Use 100ms context window
-                            
-                            if len(audio_segment) < MIN_SEGMENT_LENGTH:                                
+                            if len(audio_segment) < MIN_SEGMENT_LENGTH:
                                 # Use segment start_time as center point, or estimate from index
                                 center_time = segment.start_time if segment.start_time > 0 else (segment_index / len(recognized_segments)) * (len(waveform) / config.SAMPLE_RATE)
                                 
@@ -864,46 +921,19 @@ def process_pronunciation(
                                 
                                 fallback_start = max(0, center_sample - half_context)
                                 fallback_end = min(len(waveform), center_sample + half_context)
-                                audio_segment = waveform[fallback_start:fallback_end]                            
-                            # Validate
-                            validation_result = optional_validator.validate_phoneme_segment(
-                                audio_segment,
-                                phoneme_pair=phoneme_pair,
-                                expected_phoneme=expected_ph,
-                                suspected_phoneme=recognized_ph,
-                                sr=config.SAMPLE_RATE
-                            )                            
-                            validation_count += 1
+                                audio_segment = waveform[fallback_start:fallback_end].copy()
                             
-                            # Check if validation says it's correct with high confidence
-                            is_correct = validation_result.get('is_correct', False)
-                            confidence = validation_result.get('confidence', 0.0)
-                            
-                            if is_correct and confidence > config.VALIDATION_CONFIDENCE_THRESHOLD:
-                                print(f"Validation: {expected_ph} -> {recognized_ph} is CORRECT (confidence: {confidence:.2%})")
-                                
-                                # Update aligned_pairs to mark as correct (for green color)
-                                # Change recognized phoneme to match expected
-                                aligned_pairs[i] = (expected_ph, expected_ph)
-                                
-                                # Update diagnostic_results if index matches
-                                if i < len(diagnostic_results):
-                                    diagnostic_results[i]['is_correct'] = True
-                                    diagnostic_results[i]['validation_result'] = validation_result
-                                    diagnostic_results[i]['validation_confidence'] = confidence
-                                    diagnostic_results[i]['validation_override'] = True
-                                
-                                validation_corrected_count += 1
-                            else:
-                                # Store validation result but don't override
-                                if i < len(diagnostic_results):
-                                    diagnostic_results[i]['validation_result'] = validation_result
-                                    diagnostic_results[i]['validation_confidence'] = confidence
-                                
-                                if is_correct:
-                                    print(f"Validation: {expected_ph} -> {recognized_ph} is correct but low confidence ({confidence:.2%})")
-                                else:
-                                    print(f"Validation: {expected_ph} -> {recognized_ph} is INCORRECT (confidence: {confidence:.2%})")
+                            # Add task to validation queue
+                            validation_tasks.append({
+                                'index': i,
+                                'audio_segment': audio_segment,
+                                'phoneme_pair': phoneme_pair,
+                                'expected_phoneme': expected_ph,
+                                'suspected_phoneme': recognized_ph,
+                                'segment_index': segment_index,
+                                'validator': optional_validator,
+                                'sr': config.SAMPLE_RATE
+                            })
                         else:
                             print(f"Warning: No segment found for {recognized_ph} at index {segment_index}")
                         
@@ -913,6 +943,78 @@ def process_pronunciation(
                         # No model for this pair, advance segment index
                         if recognized_ph is not None and recognized_ph != '||':
                             segment_index += 1
+                
+                # Step 2: Execute validation tasks in parallel
+                if validation_tasks:
+                    print(f"Starting parallel validation of {len(validation_tasks)} phonemes...")
+                    # Determine optimal number of workers (8 for M3, but don't exceed task count)
+                    max_workers = min(8, len(validation_tasks), os.cpu_count() or 4)
+                    
+                    validation_results = []
+                    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                        # Submit all tasks
+                        future_to_task = {
+                            executor.submit(validate_single_phoneme, task): task
+                            for task in validation_tasks
+                        }
+                        
+                        # Collect results as they complete
+                        for future in as_completed(future_to_task):
+                            try:
+                                result = future.result()
+                                validation_results.append(result)
+                            except Exception as e:
+                                task = future_to_task[future]
+                                print(f"Validation error for phoneme pair {task.get('phoneme_pair', 'unknown')} at index {task.get('index', -1)}: {e}")
+                                import traceback
+                                traceback.print_exc()
+                    
+                    # Step 3: Sort results by index to maintain order
+                    validation_results.sort(key=lambda x: x['index'])
+                    
+                    # Step 4: Apply results to aligned_pairs and diagnostic_results
+                    for result in validation_results:
+                        i = result['index']
+                        validation_result = result['validation_result']
+                        expected_ph = result['expected_phoneme']
+                        recognized_ph = result['recognized_phoneme']
+                        
+                        # Skip if there was an error
+                        if result.get('error'):
+                            print(f"Validation error at index {i}: {result['error']}")
+                            continue
+                        
+                        validation_count += 1
+                        
+                        # Check if validation says it's correct with high confidence
+                        is_correct = validation_result.get('is_correct', False)
+                        confidence = validation_result.get('confidence', 0.0)
+                        
+                        if is_correct and confidence > config.VALIDATION_CONFIDENCE_THRESHOLD:
+                            print(f"Validation: {expected_ph} -> {recognized_ph} is CORRECT (confidence: {confidence:.2%})")
+                            
+                            # Update aligned_pairs to mark as correct (for green color)
+                            # Change recognized phoneme to match expected
+                            aligned_pairs[i] = (expected_ph, expected_ph)
+                            
+                            # Update diagnostic_results if index matches
+                            if i < len(diagnostic_results):
+                                diagnostic_results[i]['is_correct'] = True
+                                diagnostic_results[i]['validation_result'] = validation_result
+                                diagnostic_results[i]['validation_confidence'] = confidence
+                                diagnostic_results[i]['validation_override'] = True
+                            
+                            validation_corrected_count += 1
+                        else:
+                            # Store validation result but don't override
+                            if i < len(diagnostic_results):
+                                diagnostic_results[i]['validation_result'] = validation_result
+                                diagnostic_results[i]['validation_confidence'] = confidence
+                            
+                            if is_correct:
+                                print(f"Validation: {expected_ph} -> {recognized_ph} is correct but low confidence ({confidence:.2%})")
+                            else:
+                                print(f"Validation: {expected_ph} -> {recognized_ph} is INCORRECT (confidence: {confidence:.2%})")
                 
                 print(f"Validation complete: {validation_count} phonemes validated, {validation_corrected_count} corrected")
             

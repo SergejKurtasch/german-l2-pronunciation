@@ -1,12 +1,12 @@
 {
   "total_records": 1000,
   "per_before_mean": 0.2557843205969323,
-  "per_after_mean": 0.23898101899201823,
-  "per_improvement_mean": 0.01680330160491411,
+  "per_after_mean": 0.23734464136857344,
+  "per_improvement_mean": 0.01843967922835887,
   "accuracy_before_mean": 0.749124252047472,
-  "accuracy_after_mean": 0.7656662243333351,
-  "accuracy_improvement_mean": 0.016541972285862946,
-  "total_validated_pairs": 1328,
-  "total_corrected_errors": 655,
-  "correction_rate": 0.4932228915662651
+  "accuracy_after_mean": 0.7672609575995386,
+  "accuracy_improvement_mean": 0.01813670555206639,
+  "total_validated_pairs": 1288,
+  "total_corrected_errors": 729,
+  "correction_rate": 0.5659937888198758
 }
