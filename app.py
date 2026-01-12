@@ -42,12 +42,14 @@ from modules.visualization import (
 from modules.phoneme_validator import get_optional_validator
 from modules.speech_to_text import get_speech_recognizer
 from modules.metrics import calculate_wer, calculate_per
+from modules.mfa_alignment import get_mfa_aligner
 
 # Global instances
 # vad_detector = None  # VAD disabled
 audio_normalizer = None
 phoneme_recognizer = None
 phoneme_filter = None
+mfa_aligner = None
 forced_aligner = None
 diagnostic_engine = None
 optional_validator = None
@@ -80,8 +82,10 @@ def initialize_asr_only():
                         print(f"ASR recognizer (Whisper {getattr(config, 'ASR_MODEL', 'medium')}) initialized (macOS Speech not available, using fallback)")
                     else:
                         print(f"ASR recognizer (Whisper {getattr(config, 'ASR_MODEL', 'medium')}) initialized")
-            else:                print(f"Warning: ASR recognizer not available (neither {requested_engine} nor Whisper available)")
-        except Exception as e:            print(f"Warning: ASR recognizer initialization failed: {e}")
+            else:
+                print(f"Warning: ASR recognizer not available (neither {requested_engine} nor Whisper available)")
+        except Exception as e:
+            print(f"Warning: ASR recognizer initialization failed: {e}")
             asr_recognizer = None
 
 
@@ -104,13 +108,114 @@ def load_phoneme_model_in_background():
     print("Stage 3: Loading phoneme recognition model (Wav2Vec2)...")    
     try:
         if phoneme_recognizer is None:
+            model_load_start = time.time()
             phoneme_recognizer = get_phoneme_recognizer(
                 model_name=config.MODEL_NAME,
                 device=config.MODEL_DEVICE if config.MODEL_DEVICE != "auto" else None
             )
-            model_load_elapsed = (time.time() - model_load_start) * 1000            print(f"Phoneme recognition model loaded successfully! (took {model_load_elapsed/1000:.2f}s)")
-        else:            print("Phoneme recognition model already loaded.")
-    except Exception as e:        print(f"Warning: Phoneme model loading failed: {e}")
+            model_load_elapsed = (time.time() - model_load_start) * 1000
+            print(f"Phoneme recognition model loaded successfully! (took {model_load_elapsed/1000:.2f}s)")
+        else:
+            print("Phoneme recognition model already loaded.")
+    except Exception as e:
+        print(f"Warning: Phoneme model loading failed: {e}")
+
+
+def load_mfa_in_background():
+    """Load MFA aligner in background."""
+    global mfa_aligner
+    
+    print("Stage 4: Loading MFA aligner...")
+    try:
+        if mfa_aligner is None:
+            # Check if MFA is available in conda environment
+            import subprocess
+            import shutil
+            
+            conda_env = config.MFA_CONDA_ENV
+            mfa_available = False
+            
+            # Find conda executable
+            conda_cmd = shutil.which("conda")
+            if not conda_cmd:
+                # Try common conda locations
+                possible_paths = [
+                    Path.home() / "miniforge3" / "bin" / "conda",
+                    Path.home() / "miniforge3" / "condabin" / "conda",
+                    Path.home() / "miniforge" / "bin" / "conda",
+                    Path.home() / "anaconda3" / "bin" / "conda",
+                    Path.home() / "miniconda3" / "bin" / "conda",
+                    Path("/opt/homebrew/Caskroom/miniforge/base/bin/conda"),
+                    Path("/usr/local/Caskroom/miniforge/base/bin/conda"),
+                ]
+                for path in possible_paths:
+                    if path.exists():
+                        conda_cmd = str(path)
+                        break
+                
+                # Try CONDA_EXE environment variable
+                import os
+                conda_exe = os.environ.get("CONDA_EXE")
+                if conda_exe and Path(conda_exe).exists():
+                    conda_cmd = conda_exe
+            
+            # Try to find MFA binary directly in common conda locations
+            possible_mfa_paths = [
+                Path.home() / "miniforge3" / "envs" / conda_env / "bin" / "mfa",
+                Path.home() / "miniforge" / "envs" / conda_env / "bin" / "mfa",
+                Path.home() / "anaconda3" / "envs" / conda_env / "bin" / "mfa",
+                Path.home() / "miniconda3" / "envs" / conda_env / "bin" / "mfa",
+                Path("/opt/homebrew/Caskroom/miniforge/base/envs") / conda_env / "bin" / "mfa",
+                Path("/usr/local/Caskroom/miniforge/base/envs") / conda_env / "bin" / "mfa",
+            ]
+            
+            for mfa_path in possible_mfa_paths:
+                if mfa_path.exists():
+                    mfa_available = True
+                    break
+            
+            if not mfa_available and shutil.which("mfa"):
+                mfa_available = True
+            elif not mfa_available and conda_cmd:
+                # Try using conda to check
+                try:
+                    result = subprocess.run(
+                        [conda_cmd, "run", "-n", conda_env, "which", "mfa"],
+                        capture_output=True,
+                        text=True,
+                        timeout=5
+                    )
+                    if result.returncode == 0:
+                        mfa_path = result.stdout.strip()
+                        if mfa_path and Path(mfa_path).exists():
+                            mfa_available = True
+                except (subprocess.TimeoutExpired, FileNotFoundError):
+                    pass
+            
+            if not mfa_available:
+                print(f"Warning: MFA not found in conda environment '{conda_env}'.")
+                if not conda_cmd:
+                    print("Warning: conda not found. Please ensure conda is installed and accessible.")
+                    print("  Common locations: ~/miniforge3/bin/conda, ~/anaconda3/bin/conda")
+                    print("  Or set CONDA_EXE environment variable")
+                else:
+                    print(f"  MFA should be installed in environment '{conda_env}'")
+                    print(f"  To check: conda run -n {conda_env} which mfa")
+                    print(f"  To install: conda install -c conda-forge montreal-forced-aligner -n {conda_env} -y")
+            
+            # Initialize MFA aligner (will handle missing binary gracefully)
+            mfa_aligner = get_mfa_aligner()
+            if mfa_aligner:
+                print("MFA aligner loaded successfully!")
+            else:
+                print("Warning: MFA aligner initialization failed")
+        else:
+            print("MFA aligner already loaded.")
+    except Exception as e:
+        print(f"Warning: MFA aligner loading failed: {e}")
+        import traceback
+        traceback.print_exc()
+        mfa_aligner = None
 
 
 def collapse_consecutive_duplicates(phonemes: List[str]) -> List[str]:
@@ -148,7 +253,7 @@ def collapse_consecutive_duplicates(phonemes: List[str]) -> List[str]:
 def initialize_components():
     """Initialize global components."""
     # global vad_detector, audio_normalizer, phoneme_recognizer, phoneme_filter, forced_aligner, diagnostic_engine, optional_validator, asr_recognizer
-    global audio_normalizer, phoneme_recognizer, phoneme_filter, forced_aligner, diagnostic_engine, optional_validator, asr_recognizer
+    global audio_normalizer, phoneme_recognizer, phoneme_filter, forced_aligner, diagnostic_engine, optional_validator, asr_recognizer, mfa_aligner
     
     import json, time
     init_components_start = time.time()
@@ -157,7 +262,8 @@ def initialize_components():
         try:
             comp_start = time.time()
             audio_normalizer = get_audio_normalizer()
-            comp_elapsed = (time.time() - comp_start) * 1000            print("Audio normalizer initialized")
+            comp_elapsed = (time.time() - comp_start) * 1000
+            print("Audio normalizer initialized")
         except Exception as e:
             print(f"Warning: Audio normalizer initialization failed: {e}")
             audio_normalizer = None
@@ -178,7 +284,8 @@ def initialize_components():
                 model_name=config.MODEL_NAME,
                 device=config.MODEL_DEVICE if config.MODEL_DEVICE != "auto" else None
             )
-            comp_elapsed = (time.time() - comp_start) * 1000            print(f"Phoneme recognizer (Wav2Vec2 XLSR-53 eSpeak) initialized with model: {phoneme_recognizer.model_name}")
+            comp_elapsed = (time.time() - comp_start) * 1000
+            print(f"Phoneme recognizer (Wav2Vec2 XLSR-53 eSpeak) initialized with model: {phoneme_recognizer.model_name}")
         except Exception as e:
             print(f"Error: Phoneme recognizer initialization failed: {e}")
             raise
@@ -189,22 +296,26 @@ def initialize_components():
             whitelist=config.PHONEME_WHITELIST,
             confidence_threshold=config.CONFIDENCE_THRESHOLD
         )
-        comp_elapsed = (time.time() - comp_start) * 1000        print("Phoneme filter initialized")
+        comp_elapsed = (time.time() - comp_start) * 1000
+        print("Phoneme filter initialized")
     
     if forced_aligner is None:
         comp_start = time.time()
         forced_aligner = get_forced_aligner(blank_id=config.FORCED_ALIGNMENT_BLANK_ID)
-        comp_elapsed = (time.time() - comp_start) * 1000        print("Forced aligner initialized")
+        comp_elapsed = (time.time() - comp_start) * 1000
+        print("Forced aligner initialized")
     
     if diagnostic_engine is None:
         comp_start = time.time()
         diagnostic_engine = get_diagnostic_engine()
-        comp_elapsed = (time.time() - comp_start) * 1000        print("Diagnostic engine initialized")
+        comp_elapsed = (time.time() - comp_start) * 1000
+        print("Diagnostic engine initialized")
     
     if optional_validator is None:
         comp_start = time.time()
         optional_validator = get_optional_validator()
-        comp_elapsed = (time.time() - comp_start) * 1000        print("Optional validator initialized")
+        comp_elapsed = (time.time() - comp_start) * 1000
+        print("Optional validator initialized")
     
     # Preload G2P dictionaries to avoid lazy loading delay
     comp_start = time.time()
@@ -219,6 +330,16 @@ def initialize_components():
     # Initialize ASR here only if not already loaded
     if asr_recognizer is None and config.ASR_ENABLED:
         initialize_asr_only()
+    
+    # Initialize MFA aligner if enabled and not already loaded
+    if mfa_aligner is None and config.MFA_ENABLED:
+        try:
+            mfa_aligner = get_mfa_aligner()
+            if mfa_aligner:
+                print("MFA aligner initialized")
+        except Exception as e:
+            print(f"Warning: MFA aligner initialization failed: {e}")
+            mfa_aligner = None
 
 
 def process_pronunciation(
@@ -244,7 +365,19 @@ def process_pronunciation(
         6. Detailed report (HTML)
         7. Technical information (HTML)
         8. Raw phonemes (before filtering) (HTML)
-    """    
+    """
+    start_time = time.time()
+    
+    # Initialize output variables to avoid NameError
+    expected_html = ""
+    recognized_html = ""
+    side_by_side_html = ""
+    colored_text_html = ""
+    detailed_report_html = ""
+    technical_html = ""
+    raw_phonemes_html = ""
+    text_with_sources_html = ""
+    
     # Check if text is empty - if so, we'll use ASR to get text from audio
     text_is_empty = not text or not text.strip()
     
@@ -348,7 +481,8 @@ def process_pronunciation(
                             if hasattr(asr_recognizer, 'device'):
                                 asr_device = asr_recognizer.device
                             else:
-                                asr_device = "unknown"                        print(f"ASR: Recognized text (from audio): '{recognized_text}'")
+                                asr_device = "unknown"
+                        print(f"ASR: Recognized text (from audio): '{recognized_text}'")
                         
                         if not recognized_text or not recognized_text.strip():
                             error_html = "<div style='color: orange; padding: 10px;'>Could not recognize text from audio. Please try again or enter text manually.</div>"
@@ -385,17 +519,20 @@ def process_pronunciation(
                         if hasattr(asr_recognizer, 'device'):
                             asr_device = asr_recognizer.device
                         else:
-                            asr_device = "unknown"                    print(f"ASR: Recognized text: '{recognized_text}'")
+                            asr_device = "unknown"
+                    print(f"ASR: Recognized text: '{recognized_text}'")
                     
                     # Stage 3: WER Calculation (only if text was provided)
                     if recognized_text:
                         wer_start = time.time()
                         try:
                             wer_result = calculate_wer(text, recognized_text)
-                            wer_elapsed = (time.time() - wer_start) * 1000                            print(f"WER: {wer_result['wer']:.2%} (Substitutions: {wer_result['substitutions']}, "
+                            wer_elapsed = (time.time() - wer_start) * 1000
+                            print(f"WER: {wer_result['wer']:.2%} (Substitutions: {wer_result['substitutions']}, "
                                   f"Deletions: {wer_result['deletions']}, Insertions: {wer_result['insertions']})")
                         except Exception as e:
-                            wer_elapsed = (time.time() - wer_start) * 1000                            print(f"Error: WER calculation failed: {e}")
+                            wer_elapsed = (time.time() - wer_start) * 1000
+                            print(f"Error: WER calculation failed: {e}")
                             wer_result = None
                 except Exception as e:
                     print(f"Warning: ASR failed: {e}")
@@ -408,11 +545,15 @@ def process_pronunciation(
             
             # Stage 4: Check WER threshold - skip phoneme analysis if WER is too high
             # Skip this check if text was empty (WER not calculated)
-            if not text_is_empty and wer_result and wer_result['wer'] > config.WER_THRESHOLD and config.WER_SKIP_PHONEME_ANALYSIS:                # High WER - show only text comparison
+            if not text_is_empty and wer_result and wer_result['wer'] > config.WER_THRESHOLD and config.WER_SKIP_PHONEME_ANALYSIS:
+                # High WER - show only text comparison
                 from modules.visualization import create_text_comparison_view
                 
                 # Create simplified view
-                try:                    comparison_html = create_text_comparison_view(text, recognized_text or "", wer_result)                except Exception as e:                    print(f"Error: Failed to create text comparison view: {e}")
+                try:
+                    comparison_html = create_text_comparison_view(text, recognized_text or "", wer_result)
+                except Exception as e:
+                    print(f"Error: Failed to create text comparison view: {e}")
                     comparison_html = f"<div style='color: red; padding: 10px;'>Error creating text comparison: {str(e)}</div>"
                 empty_html = "<div style='color: gray; padding: 10px;'>Phoneme analysis skipped due to high WER.</div>"
                 
@@ -475,7 +616,8 @@ def process_pronunciation(
             expected_phonemes = [ph.get('phoneme', '') for ph in expected_phonemes_dict]
             # Apply CTC collapse logic to expected phonemes (same as model does)
             expected_phonemes = collapse_consecutive_duplicates(expected_phonemes)
-            g2p_elapsed = (time.time() - g2p_start) * 1000            print(f"Expected phonemes (from {'recognized' if recognized_text else 'expected'} text): {len(expected_phonemes)}")
+            g2p_elapsed = (time.time() - g2p_start) * 1000
+            print(f"Expected phonemes (from {'recognized' if recognized_text else 'expected'} text): {len(expected_phonemes)}")
             
             if not expected_phonemes:
                 error_html = "<div style='color: red; padding: 10px;'>Failed to extract expected phonemes from text.</div>"
@@ -492,7 +634,8 @@ def process_pronunciation(
             # Decode phonemes (for display)
             decode_start = time.time()
             decoded_phonemes_str = phoneme_recognizer.decode_phonemes(logits)
-            decode_elapsed = (time.time() - decode_start) * 1000            phoneme_rec_elapsed = (time.time() - phoneme_rec_start) * 1000            
+            decode_elapsed = (time.time() - decode_start) * 1000
+            phoneme_rec_elapsed = (time.time() - phoneme_rec_start) * 1000            
             raw_phonemes = decoded_phonemes_str.split()
             # Apply CTC collapse logic to recognized phonemes (for consistency, though model already does this)
             raw_phonemes = collapse_consecutive_duplicates(raw_phonemes)            
@@ -508,7 +651,8 @@ def process_pronunciation(
             )
             
             recognized_phonemes = [ph.get('phoneme', '') for ph in filtered_phonemes]
-            filter_elapsed = (time.time() - filter_start) * 1000            print(f"Filtered phonemes: {len(recognized_phonemes)}")
+            filter_elapsed = (time.time() - filter_start) * 1000
+            print(f"Filtered phonemes: {len(recognized_phonemes)}")
             
             # Use raw_phonemes for validation - model already outputs accurate IPA phonemes
             if not raw_phonemes:
@@ -522,33 +666,108 @@ def process_pronunciation(
             alignment_start = time.time()
             waveform_load_start = time.time()
             waveform, sr = librosa.load(trimmed_audio_path, sr=config.SAMPLE_RATE, mono=True)
-            waveform_load_elapsed = (time.time() - waveform_load_start) * 1000            waveform_tensor = torch.from_numpy(waveform).unsqueeze(0)
+            waveform_load_elapsed = (time.time() - waveform_load_start) * 1000
+            waveform_tensor = torch.from_numpy(waveform).unsqueeze(0)
             
-            # Extract segments for recognized phonemes
-            # Use ARPABET phonemes for forced alignment (vocab contains ARPABET tokens)
-            recognized_phonemes_arpabet = [
-                ph.get('phoneme_arpabet', ph.get('phoneme', '')) 
-                for ph in filtered_phonemes 
-                if ph.get('phoneme_arpabet') or ph.get('phoneme')
-            ]
             recognized_segments = []
-            if len(recognized_phonemes_arpabet) > 0:
+            alignment_method = "CTC"
+            
+            # Use MFA alignment only when validation is enabled (MFA provides better accuracy for validation)
+            use_mfa = enable_validation and mfa_aligner is not None and text and text.strip()
+            
+            # Choose alignment method: MFA or CTC
+            if use_mfa:
+                # Use MFA alignment with original text from interface
                 try:
-                    forced_align_start = time.time()
-                    recognized_segments = forced_aligner.extract_phoneme_segments(
-                        waveform_tensor,
-                        recognized_phonemes_arpabet,
-                        emissions,
-                        vocab,
+                    mfa_align_start = time.time()
+                    # Get expected phonemes for MFA (from original text)
+                    expected_phonemes_for_mfa = [ph.get('phoneme', '') for ph in get_expected_phonemes(text)]
+                    recognized_segments = mfa_aligner.extract_phoneme_segments(
+                        Path(trimmed_audio_path),
+                        text.strip(),
+                        expected_phonemes_for_mfa,
                         config.SAMPLE_RATE
                     )
-                    forced_align_elapsed = (time.time() - forced_align_start) * 1000                    # Update segment labels to IPA - use raw_phonemes for accurate IPA labels
-                    # Note: segment count may differ from raw_phonemes count due to forced alignment
-                    for i, segment in enumerate(recognized_segments):
-                        if i < len(raw_phonemes):
-                            segment.label = raw_phonemes[i]
+                    mfa_align_elapsed = (time.time() - mfa_align_start) * 1000
+                    alignment_method = "MFA"
+                    
+                    # Log MFA alignment latency
+                    audio_duration = len(waveform) / config.SAMPLE_RATE
+                    log_path = PROJECT_ROOT / ".cursor" / "debug.log"
+                    with open(log_path, 'a') as f:
+                        f.write(json.dumps({
+                            "sessionId": "debug-session",
+                            "runId": "performance",
+                            "hypothesisId": "ALIGNMENT_LATENCY",
+                            "location": "app.py:process_pronunciation:alignment",
+                            "message": "Alignment completed",
+                            "data": {
+                                "method": "MFA",
+                                "latency_ms": mfa_align_elapsed,
+                                "segments_count": len(recognized_segments),
+                                "audio_duration_seconds": audio_duration
+                            },
+                            "timestamp": int(time.time() * 1000),
+                            "elapsed_ms": int(mfa_align_elapsed)
+                        }) + '\n')
+                    
+                    print(f"MFA alignment completed: {len(recognized_segments)} segments in {mfa_align_elapsed:.0f}ms")
                 except Exception as e:
-                    print(f"Warning: Forced alignment failed: {e}")
+                    print(f"Warning: MFA alignment failed: {e}, falling back to CTC")
+                    import traceback
+                    traceback.print_exc()
+                    use_mfa = False  # Fallback to CTC
+            
+            # Use CTC alignment (default or fallback from MFA)
+            if not use_mfa or not recognized_segments:
+                # Extract segments for recognized phonemes using CTC
+                # Use ARPABET phonemes for forced alignment (vocab contains ARPABET tokens)
+                recognized_phonemes_arpabet = [
+                    ph.get('phoneme_arpabet', ph.get('phoneme', '')) 
+                    for ph in filtered_phonemes 
+                    if ph.get('phoneme_arpabet') or ph.get('phoneme')
+                ]
+                if len(recognized_phonemes_arpabet) > 0:
+                    try:
+                        ctc_align_start = time.time()
+                        recognized_segments = forced_aligner.extract_phoneme_segments(
+                            waveform_tensor,
+                            recognized_phonemes_arpabet,
+                            emissions,
+                            vocab,
+                            config.SAMPLE_RATE
+                        )
+                        ctc_align_elapsed = (time.time() - ctc_align_start) * 1000
+                        alignment_method = "CTC"
+                        
+                        # Log CTC alignment latency
+                        audio_duration = len(waveform) / config.SAMPLE_RATE
+                        log_path = PROJECT_ROOT / ".cursor" / "debug.log"
+                        with open(log_path, 'a') as f:
+                            f.write(json.dumps({
+                                "sessionId": "debug-session",
+                                "runId": "performance",
+                                "hypothesisId": "ALIGNMENT_LATENCY",
+                                "location": "app.py:process_pronunciation:alignment",
+                                "message": "Alignment completed",
+                                "data": {
+                                    "method": "CTC",
+                                    "latency_ms": ctc_align_elapsed,
+                                    "segments_count": len(recognized_segments),
+                                    "audio_duration_seconds": audio_duration
+                                },
+                                "timestamp": int(time.time() * 1000),
+                                "elapsed_ms": int(ctc_align_elapsed)
+                            }) + '\n')
+                        
+                        # Update segment labels to IPA - use raw_phonemes for accurate IPA labels
+                        # Note: segment count may differ from raw_phonemes count due to forced alignment
+                        for i, segment in enumerate(recognized_segments):
+                            if i < len(raw_phonemes):
+                                segment.label = raw_phonemes[i]
+                    except Exception as e:
+                        print(f"Warning: CTC forced alignment failed: {e}")
+            
             alignment_elapsed = (time.time() - alignment_start) * 1000            
             # Stage 6: Needleman-Wunsch Alignment
             # Use raw_phonemes directly - model already outputs accurate IPA phonemes
@@ -568,7 +787,8 @@ def process_pronunciation(
             # Stage 7: PER Calculation
             per_start = time.time()
             per_result = calculate_per(aligned_pairs)
-            per_elapsed = (time.time() - per_start) * 1000            print(f"PER: {per_result['per']:.2%} (Substitutions: {per_result['substitutions']}, "
+            per_elapsed = (time.time() - per_start) * 1000
+            print(f"PER: {per_result['per']:.2%} (Substitutions: {per_result['substitutions']}, "
                   f"Deletions: {per_result['deletions']}, Insertions: {per_result['insertions']})")
             
             # Stage 8: Diagnostic Analysis
@@ -700,8 +920,11 @@ def process_pronunciation(
                 text_for_phonemes,
                 expected_phonemes_dict
             )
-            viz_text_sources_elapsed = (time.time() - viz_text_sources_start) * 1000            
-            # Output 1: Expected phonemes (show expected phonemes directly, with spaces between phonemes)            expected_phonemes_str = ' '.join(expected_phonemes)            expected_html = f"<div style='font-family: monospace; font-size: 14px;'><p>{expected_phonemes_str}</p></div>"
+            viz_text_sources_elapsed = (time.time() - viz_text_sources_start) * 1000
+            
+            # Output 1: Expected phonemes (show expected phonemes directly, with spaces between phonemes)
+            expected_phonemes_str = ' '.join(expected_phonemes)
+            expected_html = f"<div style='font-family: monospace; font-size: 14px;'><p>{expected_phonemes_str}</p></div>"
             
             # Output 2: Recognized phonemes
             # Use raw_phonemes directly - model already outputs accurate IPA phonemes without filtering            
@@ -860,7 +1083,8 @@ def process_pronunciation(
             # Output 7: Raw phonemes (before filtering)
             viz_raw_start = time.time()
             raw_phonemes_html = create_raw_phonemes_display(raw_phonemes)
-            viz_raw_elapsed = (time.time() - viz_raw_start) * 1000            viz_elapsed = (time.time() - viz_start) * 1000            
+            viz_raw_elapsed = (time.time() - viz_raw_start) * 1000
+            viz_elapsed = (time.time() - viz_start) * 1000            
             total_elapsed = (time.time() - start_time) * 1000            
             return (
                 text_with_sources_html,  # First output: text with sources
@@ -915,6 +1139,10 @@ def load_models_in_background():
         # This prevents 5+ second delay on first button click
         load_phoneme_model_in_background()
         
+        # Stage 4: Load MFA aligner in background (if enabled)
+        if config.MFA_ENABLED:
+            load_mfa_in_background()
+        
         print("All models loaded successfully in background!")
     except Exception as e:
         print(f"Warning: Some components failed to initialize in background: {e}")
@@ -950,7 +1178,7 @@ def create_interface():
                 validation_checkbox = gr.Checkbox(
                     label="Enable optional validation through trained models",
                     value=False,
-                    info="Increases processing time but improves accuracy for incorrect phonemes"
+                    info="Increases processing time but improves accuracy. Uses MFA alignment for better precision."
                 )
                 
                 process_btn = gr.Button("Validate Pronunciation", variant="primary")

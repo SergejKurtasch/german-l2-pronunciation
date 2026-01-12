@@ -50,6 +50,14 @@ CONFIDENCE_THRESHOLD_STRICT = 0.6  # For high-confidence filtering (optional)
 # Forced Alignment settings
 FORCED_ALIGNMENT_BLANK_ID = 0
 
+# MFA (Montreal Forced Aligner) settings
+MFA_ENABLED = True  # Enable/disable MFA alignment option
+MFA_DICT = "german_mfa"  # MFA dictionary name (must be downloaded via: mfa model download dictionary german_mfa)
+MFA_MODEL = "german_mfa"  # MFA acoustic model name (must be downloaded via: mfa model download acoustic german_mfa)
+MFA_BIN_PATH = None  # Path to MFA binary (None = auto-detect from conda environment)
+MFA_TEMP_DIR = PROJECT_ROOT / ".mfa_temp"  # Temporary directory for MFA alignment files
+MFA_CONDA_ENV = "MFA310"  # Conda environment name where MFA is installed
+
 # Dictionary (Lexicon) settings
 DICTIONARY_DIR = PROJECT_ROOT / "data" / "dictionaries"
 # Primary: IPA-Dict-DSL (better for loanwords)
