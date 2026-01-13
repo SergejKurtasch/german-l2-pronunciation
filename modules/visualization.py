@@ -36,6 +36,179 @@ def collapse_consecutive_duplicates(phonemes: List[str]) -> List[str]:
     return collapsed
 
 
+def _detect_german_graphemes(word: str) -> List[Tuple[str, int, int]]:
+    """
+    Detect multi-character graphemes in German words.
+    
+    Args:
+        word: German word (can be mixed case)
+        
+    Returns:
+        List of (grapheme, start_pos, end_pos) tuples
+        Example: "Ich" -> [('I', 0, 1), ('ch', 1, 3)]
+    """
+    word_lower = word.lower()
+    graphemes = []
+    i = 0
+    
+    # German digraphs and trigraphs that typically represent single phonemes
+    # Ordered by priority (longer first, more common patterns prioritized)
+    multi_char_graphemes = [
+        'tsch', # trigraph (rare but distinct)
+        'sch',  # trigraph - very common
+        'ch',   # digraph - very common, single phoneme
+        'ie',   # digraph - long i sound
+        'ei',   # digraph - diphthong
+        'eu',   # digraph - diphthong
+        'äu',   # digraph - diphthong
+        'au',   # digraph - diphthong
+        # Note: Removed 'pf', 'th', 'ng', 'ph', etc. as they often map to 2 phonemes
+        # The alignment algorithm will handle these better as separate characters
+    ]
+    
+    while i < len(word):
+        matched = False
+        
+        # Try to match multi-character graphemes (longest first)
+        for grapheme in multi_char_graphemes:
+            if i + len(grapheme) <= len(word) and word_lower[i:i+len(grapheme)] == grapheme:
+                # Keep original case from word
+                graphemes.append((word[i:i+len(grapheme)], i, i+len(grapheme)))
+                i += len(grapheme)
+                matched = True
+                break
+        
+        if not matched:
+            # Single character
+            graphemes.append((word[i], i, i+1))
+            i += 1
+    
+    return graphemes
+
+
+def align_graphemes_to_phonemes(
+    word: str,
+    phonemes: List[str],
+    use_g2p: bool = False
+) -> List[Tuple[str, int]]:
+    """
+    Align characters/graphemes in word to their corresponding phonemes using edit distance.
+    
+    This function creates a character-to-phoneme mapping that respects German orthography
+    by detecting multi-character graphemes (ch, sch, ie, ei, etc.) and aligning them
+    with phonemes using a simplified edit distance algorithm.
+    
+    Args:
+        word: German word (e.g., "Apfel", "Ich", "Grundlagenstreit")
+        phonemes: List of phonemes for this word (e.g., ['a', 'p', 'f', 'ə', 'l'])
+        use_g2p: Use G2P to help with alignment (currently unused, reserved for future)
+        
+    Returns:
+        List of (grapheme, phoneme_index) tuples mapping each character/grapheme to a phoneme index
+        Example for "Ich" with phonemes ['ɪ', 'ç']:
+            [('I', 0), ('ch', 1)]
+        Example for "Apfel" with phonemes ['a', 'p', 'f', 'ə', 'l']:
+            [('A', 0), ('p', 1), ('f', 2), ('e', 3), ('l', 4)]
+    """
+    if not word or not phonemes:
+        return []
+    
+    # Detect graphemes (handles multi-character graphemes like 'ch', 'sch', etc.)
+    graphemes = _detect_german_graphemes(word)
+    
+    # Simple heuristic alignment: distribute phonemes across graphemes
+    # This works well when grapheme count is similar to phoneme count
+    num_graphemes = len(graphemes)
+    num_phonemes = len(phonemes)
+    
+    if num_graphemes == 0 or num_phonemes == 0:
+        return []
+    
+    result = []
+    
+    if num_graphemes == num_phonemes:
+        # Perfect case: one-to-one mapping
+        for i, (grapheme, start, end) in enumerate(graphemes):
+            result.append((grapheme, i))
+    
+    elif num_graphemes < num_phonemes:
+        # More phonemes than graphemes (e.g., long vowels: "a" -> "aː")
+        # Distribute phonemes across graphemes, some graphemes get multiple phonemes
+        phonemes_per_grapheme = num_phonemes / num_graphemes
+        
+        for i, (grapheme, start, end) in enumerate(graphemes):
+            # Map this grapheme to the corresponding phoneme index
+            phoneme_idx = min(int(i * phonemes_per_grapheme), num_phonemes - 1)
+            result.append((grapheme, phoneme_idx))
+    
+    else:
+        # More graphemes than phonemes (e.g., silent letters or multi-char graphemes)
+        # Use more sophisticated alignment
+        
+        # Create a simple dynamic programming alignment
+        # dp[g][p] = cost of aligning first g graphemes with first p phonemes
+        dp = [[float('inf')] * (num_phonemes + 1) for _ in range(num_graphemes + 1)]
+        backtrack = [[None] * (num_phonemes + 1) for _ in range(num_graphemes + 1)]
+        
+        # Base case: empty alignment
+        dp[0][0] = 0
+        
+        # Fill DP table
+        for g in range(num_graphemes + 1):
+            for p in range(num_phonemes + 1):
+                if dp[g][p] == float('inf'):
+                    continue
+                
+                # Option 1: Match grapheme[g] with phoneme[p]
+                if g < num_graphemes and p < num_phonemes:
+                    cost = 0  # Assume match (we could add similarity scoring here)
+                    if dp[g][p] + cost < dp[g+1][p+1]:
+                        dp[g+1][p+1] = dp[g][p] + cost
+                        backtrack[g+1][p+1] = (g, p, 'match')
+                
+                # Option 2: Skip grapheme (silent letter or merged with previous)
+                if g < num_graphemes:
+                    cost = 1  # Small penalty for skipping
+                    if dp[g][p] + cost < dp[g+1][p]:
+                        dp[g+1][p] = dp[g][p] + cost
+                        backtrack[g+1][p] = (g, p, 'skip_grapheme')
+                
+                # Option 3: Skip phoneme (one grapheme maps to multiple phonemes)
+                # Less common, higher penalty
+                if p < num_phonemes:
+                    cost = 2
+                    if dp[g][p] + cost < dp[g][p+1]:
+                        dp[g][p+1] = dp[g][p] + cost
+                        backtrack[g][p+1] = (g, p, 'skip_phoneme')
+        
+        # Backtrack to find alignment
+        g, p = num_graphemes, num_phonemes
+        alignment = []
+        
+        while g > 0 or p > 0:
+            if backtrack[g][p] is None:
+                break
+            
+            prev_g, prev_p, action = backtrack[g][p]
+            
+            if action == 'match':
+                alignment.append((g-1, prev_p))
+            elif action == 'skip_grapheme':
+                # Map skipped grapheme to nearest phoneme
+                alignment.append((g-1, max(0, prev_p - 1)))
+            
+            g, p = prev_g, prev_p
+        
+        alignment.reverse()
+        
+        # Convert alignment to result format
+        for grapheme_idx, phoneme_idx in alignment:
+            grapheme, start, end = graphemes[grapheme_idx]
+            result.append((grapheme, phoneme_idx))
+    
+    return result
+
+
 def create_side_by_side_comparison(
     expected_phonemes: List[str],
     recognized_phonemes: List[str],
@@ -346,48 +519,62 @@ def create_colored_text(
         token_phonemes = phonemes_by_token.get(token_clean, [])
         
         if token_phonemes:
-            # Get all characters in token (including punctuation)
-            token_chars = list(token)
-            # Get alphanumeric characters only for phoneme distribution
-            alnum_chars = [c for c in token if c.isalnum()]
-            
-            if alnum_chars:
-                # More accurate distribution: map phonemes to characters
-                # Use proportional distribution but ensure all characters get a color
-                num_phonemes = len(token_phonemes)
-                num_chars = len(alnum_chars)
+            # NEW: Use grapheme-phoneme alignment instead of linear interpolation
+            try:
+                # Extract phoneme list for this token
+                phoneme_list = [ph['phoneme'] for ph in token_phonemes]
                 
-                # Calculate how many phonemes per character (can be fractional)
-                if num_phonemes > 0 and num_chars > 0:
-                    phonemes_per_char = num_phonemes / num_chars
-                    
-                    alnum_idx = 0
-                    for i, char in enumerate(token_chars):
-                        char_pos_in_text = token_start + i
-                        
-                        if char.isalnum():
-                            # Map alphanumeric character to phoneme
-                            # Use floor to ensure we don't go out of bounds
-                            ph_idx = min(int(alnum_idx * phonemes_per_char), num_phonemes - 1)
-                            collapsed_ph_idx = token_phonemes[ph_idx]['index']
+                # Align graphemes (characters) to phonemes
+                grapheme_to_phoneme = align_graphemes_to_phonemes(token, phoneme_list)
+                
+                if grapheme_to_phoneme:
+                    # Map each grapheme to its color based on phoneme alignment
+                    char_offset = 0
+                    for grapheme, phoneme_idx in grapheme_to_phoneme:
+                        # Get the collapsed phoneme index for color lookup
+                        if phoneme_idx < len(token_phonemes):
+                            collapsed_ph_idx = token_phonemes[phoneme_idx]['index']
+                            
                             if collapsed_ph_idx in collapsed_ph_to_color:
-                                char_to_color[char_pos_in_text] = collapsed_ph_to_color[collapsed_ph_idx]
-                            alnum_idx += 1
-                        else:
-                            # For punctuation within token, use color of the last phoneme
-                            # This ensures punctuation at the end of words gets colored
-                            last_ph_idx = token_phonemes[-1]['index']
-                            if last_ph_idx in collapsed_ph_to_color:
-                                char_to_color[char_pos_in_text] = collapsed_ph_to_color[last_ph_idx]
-            else:
-                # Token has no alphanumeric chars (only punctuation)
-                # Use color of first phoneme if available
-                if token_phonemes:
-                    first_ph_idx = token_phonemes[0]['index']
-                    if first_ph_idx in collapsed_ph_to_color:
-                        for i, char in enumerate(token_chars):
+                                color = collapsed_ph_to_color[collapsed_ph_idx]
+                                
+                                # Apply color to all characters in this grapheme
+                                for i in range(len(grapheme)):
+                                    char_pos_in_text = token_start + char_offset + i
+                                    char_to_color[char_pos_in_text] = color
+                        
+                        char_offset += len(grapheme)
+                else:
+                    # Fallback: alignment failed, use word-level coloring with dominant color
+                    word_colors = [collapsed_ph_to_color.get(ph['index'], 'gray') 
+                                   for ph in token_phonemes 
+                                   if ph['index'] in collapsed_ph_to_color]
+                    
+                    if word_colors:
+                        # Use most common color (or first color if tie)
+                        from collections import Counter
+                        dominant_color = Counter(word_colors).most_common(1)[0][0]
+                        
+                        for i in range(len(token)):
                             char_pos_in_text = token_start + i
-                            char_to_color[char_pos_in_text] = collapsed_ph_to_color[first_ph_idx]
+                            char_to_color[char_pos_in_text] = dominant_color
+            
+            except Exception as e:
+                # Fallback on any error: use word-level coloring with dominant color
+                import sys
+                print(f"Warning: Grapheme-phoneme alignment failed for token '{token}': {e}", file=sys.stderr)
+                
+                word_colors = [collapsed_ph_to_color.get(ph['index'], 'gray') 
+                               for ph in token_phonemes 
+                               if ph['index'] in collapsed_ph_to_color]
+                
+                if word_colors:
+                    from collections import Counter
+                    dominant_color = Counter(word_colors).most_common(1)[0][0]
+                    
+                    for i in range(len(token)):
+                        char_pos_in_text = token_start + i
+                        char_to_color[char_pos_in_text] = dominant_color
     
     # Step 6: Generate HTML with colored text (without bold by default)
     html = "<div style='font-size: 18px; line-height: 1.3; margin: 5px 0;'>"
