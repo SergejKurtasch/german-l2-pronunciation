@@ -44,7 +44,7 @@ class DiagnosticEngine:
             # Load default feedback
             self.default_feedback = {
                 'en': data.get('default_feedback_en', 'Try to match the target sound more closely.'),
-                'ru': data.get('default_feedback_ru', 'Постарайтесь точнее соответствовать целевому звуку.'),
+                'ru': data.get('default_feedback_ru', 'Try to match the target sound more closely.'),
                 'de': data.get('default_feedback_de', 'Versuchen Sie, dem Zielklang näher zu kommen.')
             }
             
@@ -55,7 +55,7 @@ class DiagnosticEngine:
             self.error_matrix = {}
             self.default_feedback = {
                 'en': 'Try to match the target sound more closely.',
-                'ru': 'Постарайтесь точнее соответствовать целевому звуку.',
+                'ru': 'Try to match the target sound more closely.',
                 'de': 'Versuchen Sie, dem Zielklang näher zu kommen.'
             }
     
@@ -129,7 +129,7 @@ class DiagnosticEngine:
                     'is_missing': False,
                     'is_extra': True,
                     'feedback_en': f"Extra phoneme '{recognized}' detected.",
-                    'feedback_ru': f"Обнаружена лишняя фонема '{recognized}'.",
+                    'feedback_ru': f"Extra phoneme '{recognized}' detected.",
                     'feedback_de': f"Zusätzliches Phonem '{recognized}' erkannt."
                 })
             elif recognized is None:
@@ -141,7 +141,7 @@ class DiagnosticEngine:
                     'is_missing': True,
                     'is_extra': False,
                     'feedback_en': f"Missing phoneme '{expected}'. Try to pronounce it.",
-                    'feedback_ru': f"Пропущена фонема '{expected}'. Попробуйте произнести её.",
+                    'feedback_ru': f"Missing phoneme '{expected}'. Try to pronounce it.",
                     'feedback_de': f"Fehlendes Phonem '{expected}'. Versuchen Sie, es auszusprechen."
                 })
             else:

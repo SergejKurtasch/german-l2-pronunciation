@@ -167,23 +167,19 @@ def create_side_by_side_comparison(
         recognized_chunk = recognized_row[chunk_start:chunk_end]
         
         # Expected phonemes row - normal background
-        # Use white-space: nowrap to prevent wrapping, and overflow-x: auto for horizontal scroll if needed
-        # Use display: flex with flex-wrap: nowrap for better control
+        # Use natural text wrapping like regular text, exactly like colored text display
         html += "<div style='margin-bottom: 5px; padding: 5px 8px; background: #ffffff; border-radius: 3px;'>"
         html += "<div style='color: #495057; font-size: 13px; font-weight: bold; margin-bottom: 2px; text-align: right;'>Expected phonemes:</div>"
-        # Use container with nowrap and horizontal scroll if needed, but try to fit on one line
-        html += "<div style='font-size: 0; white-space: nowrap; overflow-x: auto; overflow-y: hidden; width: 100%;'>"
-        html += "<div style='display: inline-block; font-size: 16px; white-space: nowrap;'>" + "".join(expected_chunk) + "</div>"
-        html += "</div>"
+        # Use exact same style as regular text: font-size: 18px, line-height: 1.3, margin: 5px 0
+        # This allows natural text wrapping like regular text
+        html += "<div style='font-size: 18px; line-height: 1.3; margin: 5px 0;'>" + "".join(expected_chunk) + "</div>"
         html += "</div>"
         
         # Recognized phonemes row - light gray background
         html += "<div style='margin-bottom: 10px; padding: 5px 8px; background: #e9ecef; border-radius: 3px;'>"
         html += "<div style='color: #495057; font-size: 13px; font-weight: bold; margin-bottom: 2px; text-align: right;'>Recognized phonemes:</div>"
-        # Use same approach for recognized phonemes
-        html += "<div style='font-size: 0; white-space: nowrap; overflow-x: auto; overflow-y: hidden; width: 100%;'>"
-        html += "<div style='display: inline-block; font-size: 16px; white-space: nowrap;'>" + "".join(recognized_chunk) + "</div>"
-        html += "</div>"
+        # Use exact same style as regular text for natural wrapping
+        html += "<div style='font-size: 18px; line-height: 1.3; margin: 5px 0;'>" + "".join(recognized_chunk) + "</div>"
         html += "</div>"
     
     html += "</div>"

@@ -29,9 +29,9 @@ def calculate_wer(reference: str, hypothesis: str) -> Dict[str, any]:
     
     WER = (S + D + I) / N
     where:
-    - S = substitutions (замены)
-    - D = deletions (пропуски)
-    - I = insertions (вставки)
+    - S = substitutions
+    - D = deletions
+    - I = insertions
     - N = total words in reference
     
     Args:
@@ -217,9 +217,9 @@ def calculate_per(aligned_pairs: List[Tuple[Optional[str], Optional[str]]]) -> D
     
     PER = (S + D + I) / N
     where:
-    - S = substitutions (замены фонем)
-    - D = deletions (пропущенные фонемы)
-    - I = insertions (лишние фонемы)
+    - S = substitutions (phoneme substitutions)
+    - D = deletions (missing phonemes)
+    - I = insertions (extra phonemes)
     - N = total expected phonemes
     
     Args:

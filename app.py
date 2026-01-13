@@ -1312,8 +1312,12 @@ def create_interface():
     # Don't initialize components on startup - let them load in background
     # This allows browser to open quickly
     
-    with gr.Blocks(title="German Pronunciation Diagnostic App (L2-Trainer)", theme=gr.themes.Soft(), css="""
-        /* Установка шрифта для всего интерфейса */
+    with gr.Blocks(title="German Pronunciation Diagnostic App (L2-Trainer)", theme=gr.themes.Monochrome(), css="""
+        /* Center-align the main heading */
+        .gradio-container h1 {
+            text-align: center !important;
+        }
+        /* Set font for entire interface */
         .gradio-container, .gradio-container * {
             font-family: 'Consolas', monospace !important;
         }
@@ -1321,96 +1325,87 @@ def create_interface():
             height: 70vh !important;
             min-height: 400px;
         }
-        /* Выравнивание элементов по высоте - работает для всех строк с equal_height */
-        .gradio-container .row > .column {
+        /* Align elements by height - works for rows with equal_height (excluding unequal-height) */
+        .gradio-container .row:not(.unequal-height) > .column {
             display: flex !important;
             align-items: stretch !important;
         }
-        .gradio-container .row > .column > .block {
+        .gradio-container .row:not(.unequal-height) > .column > .block {
             display: flex !important;
             flex-direction: column !important;
             width: 100% !important;
         }
-        /* Выравнивание текстового поля по высоте - занимает всю доступную область */
-        .gradio-container .row > .column:first-child .form {
+        /* Align text field by height - occupies entire available area (only for equal_height rows) */
+        .gradio-container .row:not(.unequal-height) > .column:first-child .form {
             display: flex !important;
             flex-direction: column !important;
             height: 100% !important;
         }
-        .gradio-container .row > .column:first-child .form .block {
+        .gradio-container .row:not(.unequal-height) > .column:first-child .form .block {
             flex: 1 !important;
             display: flex !important;
             flex-direction: column !important;
             height: 100% !important;
         }
-        /* Контейнер textarea занимает всю высоту */
-        .gradio-container .row > .column:first-child .form .block > label {
+        /* Textarea container occupies full height (only for equal_height rows) */
+        .gradio-container .row:not(.unequal-height) > .column:first-child .form .block > label {
             flex: 1 !important;
             display: flex !important;
             flex-direction: column !important;
             height: 100% !important;
         }
-        .gradio-container .row > .column:first-child .form .block > label > .input-container {
+        .gradio-container .row:not(.unequal-height) > .column:first-child .form .block > label > .input-container {
             flex: 1 !important;
             display: flex !important;
             height: 100% !important;
         }
-        /* Textarea занимает всю высоту блока */
-        .gradio-container .row > .column:first-child textarea {
+        /* Textarea occupies full height of block (only for equal_height rows) */
+        .gradio-container .row:not(.unequal-height) > .column:first-child textarea {
             flex: 1 !important;
             height: 100% !important;
             min-height: 100% !important;
             resize: none !important;
         }
-        /* Выравнивание чекбокса и кнопки по правому краю в одной колонке */
-        .gradio-container .row > .column:last-child {
+        /* Align checkbox and button to right edge in one column (only for equal_height rows) */
+        .gradio-container .row:not(.unequal-height) > .column:last-child {
             justify-content: flex-end !important;
             align-items: flex-end !important;
         }
-        .gradio-container .row > .column:last-child .block {
+        .gradio-container .row:not(.unequal-height) > .column:last-child .block {
             display: flex !important;
             flex-direction: column !important;
             align-items: flex-end !important;
             gap: 10px !important;
         }
-        /* Улучшение отображения фонемных последовательностей */
-        /* Контейнеры с фонемами должны использовать всю доступную ширину */
+        /* Improve display of phoneme sequences */
+        /* Phoneme containers should use full available width */
         .gradio-container div[data-block-id='side-by-side-comparison'] {
             width: 100% !important;
             max-width: 100% !important;
             box-sizing: border-box !important;
         }
-        /* Фонемные последовательности должны распределяться по всей ширине */
+        /* Phoneme sequences should be distributed across full width */
         .gradio-container div[data-block-id='side-by-side-comparison'] > div > div {
             width: 100% !important;
             max-width: 100% !important;
             box-sizing: border-box !important;
         }
-        /* Предотвращение переноса фонемных последовательностей */
-        .gradio-container div[style*="font-size: 0"][style*="white-space"] {
+        /* Natural wrapping of phoneme sequences, like regular text */
+        /* Phoneme containers should use natural line wrapping, like regular text */
+        .gradio-container div[data-block-id='side-by-side-comparison'] div[style*="font-size: 18px"][style*="line-height: 1.3"] {
             width: 100% !important;
             max-width: 100% !important;
             box-sizing: border-box !important;
+            white-space: normal !important;
+            word-wrap: break-word !important;
+            overflow-wrap: break-word !important;
         }
-        /* Улучшение отображения inline-block элементов с фонемами */
-        .gradio-container div[style*="font-size: 0"] > div[style*="display: inline-block"] {
-            white-space: nowrap !important;
-            min-width: fit-content !important;
+        /* Inline-block elements should wrap naturally, like regular text */
+        .gradio-container div[data-block-id='side-by-side-comparison'] div[style*="font-size: 18px"] > span[style*="display: inline-block"] {
+            white-space: normal !important;
+            overflow-wrap: break-word !important;
         }
-        /* Распределение фонем по всей ширине контейнера */
-        /* Контейнер должен использовать всю доступную ширину */
-        .gradio-container div[style*="font-size: 0"][style*="overflow-x: auto"] {
-            width: 100% !important;
-            max-width: 100% !important;
-            box-sizing: border-box !important;
-        }
-        /* Внутренний контейнер с фонемами должен использовать всю ширину без переноса */
-        .gradio-container div[style*="font-size: 0"][style*="overflow-x: auto"] > div[style*="display: inline-block"] {
-            width: 100% !important;
-            min-width: fit-content !important;
-            white-space: nowrap !important;
-        }
-        /* Горизонтальная прокрутка для длинных последовательностей */
+        /* Horizontal scrolling for long sequences */
         .gradio-container div[style*="overflow-x: auto"] {
             scrollbar-width: thin !important;
             scrollbar-color: #cbd5e0 #f7fafc !important;
@@ -1425,7 +1420,7 @@ def create_interface():
             background: #cbd5e0 !important;
             border-radius: 3px !important;
         }
-        /* Адаптивное распределение для разных размеров экрана */
+        /* Adaptive distribution for different screen sizes */
         @media (min-width: 1200px) {
             .gradio-container div[data-block-id='side-by-side-comparison'] {
                 max-width: calc(100vw - 200px) !important;
@@ -1436,46 +1431,104 @@ def create_interface():
                 max-width: calc(100vw - 40px) !important;
             }
         }
+        /* Stretch main Row with chat and controls */
+        .gradio-container .row.unequal-height {
+            display: flex !important;
+            align-items: stretch !important;
+            min-height: 600px !important;
+        }
+        /* Stretch left column with chat */
+        .gradio-container .row.unequal-height > .column:first-child {
+            display: flex !important;
+            flex-direction: column !important;
+            height: 100% !important;
+        }
+        /* Stretch right column to chat height */
+        .gradio-container .row.unequal-height > .column:nth-child(2) {
+            display: flex !important;
+            flex-direction: column !important;
+            height: 100% !important;
+            align-items: stretch !important;
+        }
+        /* Stretch inner Row with controls by height */
+        .gradio-container .row.unequal-height > .column:nth-child(2) > .row {
+            display: flex !important;
+            flex: 1 !important;
+            align-items: stretch !important;
+            min-height: 0 !important;
+        }
+        /* Align Audio Input to top edge */
+        .gradio-container .row.unequal-height > .column:nth-child(2) > .row > .column:first-child {
+            display: flex !important;
+            align-items: flex-start !important;
+        }
+        /* Align validation controls to bottom edge - stretch to full height */
+        .gradio-container .row.unequal-height > .column:nth-child(2) > .row > .column:last-child {
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: flex-end !important;
+            align-items: stretch !important;
+        }
+        /* Block with validation controls - aligns button to bottom */
+        .gradio-container .row.unequal-height > .column:nth-child(2) > .row > .column:last-child > .block {
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: flex-end !important;
+            gap: 10px !important;
+            flex: 1 !important;
+        }
+        /* Form with validation controls - aligns button to bottom */
+        .gradio-container .row.unequal-height > .column:nth-child(2) > .row > .column:last-child > .form {
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: flex-end !important;
+            flex: 1 !important;
+        }
     """) as app:
         gr.Markdown("""
         # German Pronunciation Diagnostic App (L2-Trainer)
-        
-        Enter a German sentence and record your pronunciation.
         """)
         
-        # Chat interface - full width, 70% height
-        chatbot = gr.Chatbot(
-            label="Pronunciation Analysis",
-            height=600,  # Approximately 70% of typical screen height (will be responsive)
-            show_label=False,
-            container=True
-        )
-        
-        # Controls below chat - in a row with equal height
-        with gr.Row(equal_height=True):
-            with gr.Column(scale=5):
+        # Main layout: Chatbot on left (70%), controls on right (30%)
+        with gr.Row():
+            # Left side: Chatbot (70% width)
+            with gr.Column(scale=7):
+                chatbot = gr.Chatbot(
+                    label="Pronunciation Analysis",
+                    height=600,
+                    show_label=False,
+                    container=True
+                )
+            
+            # Right side: Controls (30% width)
+            with gr.Column(scale=3):
+                # German Text input (full width, 1.5x height)
                 text_input = gr.Textbox(
                     label="German Text",
                     placeholder="Enter a German sentence here...",
-                    lines=2,
+                    lines=6,  # Increased from 2 to 3 (1.5x height)
                     show_label=True
                 )
-            
-            with gr.Column(scale=1, min_width=200):
-                audio_input = gr.Audio(
-                    label="Audio Input",
-                    type="numpy",
-                    sources=["microphone", "upload"],
-                    show_label=True
-                )
-            
-            with gr.Column(scale=1, min_width=150):
-                validation_checkbox = gr.Checkbox(
-                    label="Enable validation",
-                    value=False,
-                    show_label=True
-                )
-                process_btn = gr.Button("Validate Pronunciation", variant="primary", size="sm")
+                
+                # Audio Input and validation controls in one row
+                with gr.Row():
+                    # Audio Input (narrower, 2x narrower than validation controls, aligned to top of chat)
+                    with gr.Column(scale=1):
+                        audio_input = gr.Audio(
+                            label="Audio Input",
+                            type="numpy",
+                            sources=["microphone", "upload"],
+                            show_label=True
+                        )
+                    
+                    # Validation controls (wider, right side)
+                    with gr.Column(scale=2):
+                        validation_checkbox = gr.Checkbox(
+                            label="Enable 2 step validation",
+                            value=False,
+                            show_label=True
+                        )
+                        process_btn = gr.Button("Validate Pronunciation", variant="primary", size="sm")
         
         # Examples - first row
         gr.Examples(
@@ -1505,11 +1558,59 @@ def create_interface():
                 # Return text only if audio fails to load
                 return text, None
         
-        # Second row of examples with custom button
-        with gr.Row():
+        # Function for second example
+        def load_example_text_and_audio_2():
+            """Load example text and audio file (example 2)."""
+            text = """Aber für unsere Entwicklungspolitik, für unsere Außenpolitik, für unsere Kulturpolitik durch die Goethe-Institute ist das Thema „Teilhabe von Frauen" ein zentrales Thema."""
+            audio_path = "/Volumes/SSanDisk/audio_data/data_wav/TV-2021.02-Neutral/4aeeae88-0777-2c8c-5c93-2e844a462e49---0a05b797c25f88e74d0d8d69a4705187.wav"
+            
+            # Load audio file
+            try:
+                audio_array, sample_rate = librosa.load(audio_path, sr=None, mono=True)
+                # Gradio expects (sample_rate, audio_array) tuple
+                audio_tuple = (sample_rate, audio_array)
+                return text, audio_tuple
+            except Exception as e:
+                print(f"Error loading audio file: {e}")
+                # Return text only if audio fails to load
+                return text, None
+        
+        # Function for third example
+        def load_example_text_and_audio_3():
+            """Load example text and audio file (example 3)."""
+            text = "Plötzlich wurde dem Privatdetektiv klar, worum es dem Dieb eigentlich ging."
+            audio_path = "/Volumes/SSanDisk/SpeechRec-German/wav2vec2-finetune/artifacts/processed_audio/TV-2021.02-Neutral/4aeeae88-0777-2c8c-5c93-2e844a462e49---8da112ef2540faff1fe1dfdf3f433e54.wav"
+            
+            # Load audio file
+            try:
+                audio_array, sample_rate = librosa.load(audio_path, sr=None, mono=True)
+                # Gradio expects (sample_rate, audio_array) tuple
+                audio_tuple = (sample_rate, audio_array)
+                return text, audio_tuple
+            except Exception as e:
+                print(f"Error loading audio file: {e}")
+                # Return text only if audio fails to load
+                return text, None
+        
+        # Second row of examples with custom buttons
+        with gr.Row(equal_height=True):
             example_btn = gr.Button("Im Grundlagenstreit der...", variant="secondary", size="sm")
             example_btn.click(
                 fn=load_example_text_and_audio,
+                inputs=[],
+                outputs=[text_input, audio_input]
+            )
+            
+            example_btn_2 = gr.Button("Aber für unsere Entwicklungspolitik...", variant="secondary", size="sm")
+            example_btn_2.click(
+                fn=load_example_text_and_audio_2,
+                inputs=[],
+                outputs=[text_input, audio_input]
+            )
+            
+            example_btn_3 = gr.Button("Plötzlich wurde dem Privatdetektiv...", variant="secondary", size="sm")
+            example_btn_3.click(
+                fn=load_example_text_and_audio_3,
                 inputs=[],
                 outputs=[text_input, audio_input]
             )
