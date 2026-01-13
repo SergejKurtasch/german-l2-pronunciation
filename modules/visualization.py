@@ -133,9 +133,31 @@ def create_side_by_side_comparison(
             recognized_row.append(f"<span style='display: inline-block; color: {color}; background: {color}15; padding: 2px 0; font-size: 16px; font-weight: normal;'>{rec_display}</span>")
     
     # Split long sequences into chunks to fit screen width
-    # Estimate: each phoneme is ~30-40px wide, screen is typically 1200-1920px
-    # Use ~50 phonemes per line as a safe estimate
-    CHUNK_SIZE = 50
+    # Improved algorithm: calculate optimal chunk size based on container width
+    # This algorithm dynamically calculates the number of phonemes that can fit on one line
+    # based on the estimated container width and average phoneme width
+    
+    # Estimate average phoneme width (including inline-block spacing and padding)
+    # Each phoneme span is approximately 25-40px wide (font-size 16px + padding 2px + inline-block spacing)
+    # Shorter phonemes (1-2 chars) are ~25px, longer ones (3-4 chars) are ~35-40px
+    AVG_PHONEME_WIDTH_PX = 32  # Average of short and long phonemes
+    
+    # Estimate container width dynamically
+    # Chat bubble width varies: mobile ~600px, tablet ~800px, desktop ~1000-1200px
+    # Use a more adaptive approach: calculate based on typical chat container
+    # Most chat containers in Gradio are ~80-90% of viewport width, minus padding
+    # For better distribution, use a larger estimate to maximize usage of available space
+    ESTIMATED_CONTAINER_WIDTH_PX = 1000  # More generous estimate for better space utilization
+    # Account for padding, margins, and label width (left/right padding + label)
+    AVAILABLE_WIDTH_PX = ESTIMATED_CONTAINER_WIDTH_PX - 60  # 60px for padding/margins/label
+    
+    # Calculate optimal chunk size
+    OPTIMAL_CHUNK_SIZE = max(40, int(AVAILABLE_WIDTH_PX / AVG_PHONEME_WIDTH_PX))
+    
+    # Use optimal chunk size with a small safety margin to account for variable phoneme widths
+    # This ensures most sequences fit on one line while preventing overflow
+    CHUNK_SIZE = max(40, OPTIMAL_CHUNK_SIZE - 3)  # Subtract 3 for safety margin
+    
     total_pairs = len(expected_row)
     
     # Build HTML with multiple pairs of rows if needed
@@ -145,15 +167,23 @@ def create_side_by_side_comparison(
         recognized_chunk = recognized_row[chunk_start:chunk_end]
         
         # Expected phonemes row - normal background
-        html += "<div style='margin-bottom: 5px; padding: 8px; background: #ffffff; border-radius: 3px;'>"
-        html += "<div style='color: #495057; font-size: 13px; font-weight: bold; margin-bottom: 5px;'>Expected phonemes:</div>"
-        html += "<div style='font-size: 0; white-space: pre; overflow-x: auto;'>" + "".join(expected_chunk) + "</div>"
+        # Use white-space: nowrap to prevent wrapping, and overflow-x: auto for horizontal scroll if needed
+        # Use display: flex with flex-wrap: nowrap for better control
+        html += "<div style='margin-bottom: 5px; padding: 5px 8px; background: #ffffff; border-radius: 3px;'>"
+        html += "<div style='color: #495057; font-size: 13px; font-weight: bold; margin-bottom: 2px; text-align: right;'>Expected phonemes:</div>"
+        # Use container with nowrap and horizontal scroll if needed, but try to fit on one line
+        html += "<div style='font-size: 0; white-space: nowrap; overflow-x: auto; overflow-y: hidden; width: 100%;'>"
+        html += "<div style='display: inline-block; font-size: 16px; white-space: nowrap;'>" + "".join(expected_chunk) + "</div>"
+        html += "</div>"
         html += "</div>"
         
         # Recognized phonemes row - light gray background
-        html += "<div style='margin-bottom: 15px; padding: 8px; background: #e9ecef; border-radius: 3px;'>"
-        html += "<div style='color: #495057; font-size: 13px; font-weight: bold; margin-bottom: 5px;'>Recognized phonemes:</div>"
-        html += "<div style='font-size: 0; white-space: pre; overflow-x: auto;'>" + "".join(recognized_chunk) + "</div>"
+        html += "<div style='margin-bottom: 10px; padding: 5px 8px; background: #e9ecef; border-radius: 3px;'>"
+        html += "<div style='color: #495057; font-size: 13px; font-weight: bold; margin-bottom: 2px; text-align: right;'>Recognized phonemes:</div>"
+        # Use same approach for recognized phonemes
+        html += "<div style='font-size: 0; white-space: nowrap; overflow-x: auto; overflow-y: hidden; width: 100%;'>"
+        html += "<div style='display: inline-block; font-size: 16px; white-space: nowrap;'>" + "".join(recognized_chunk) + "</div>"
+        html += "</div>"
         html += "</div>"
     
     html += "</div>"
@@ -364,7 +394,7 @@ def create_colored_text(
                             char_to_color[char_pos_in_text] = collapsed_ph_to_color[first_ph_idx]
     
     # Step 6: Generate HTML with colored text (without bold by default)
-    html = "<div style='font-size: 18px; line-height: 1.8;'>"
+    html = "<div style='font-size: 18px; line-height: 1.3; margin: 5px 0;'>"
     
     for i, char in enumerate(text):
         if char.isspace():
@@ -1096,11 +1126,16 @@ def _apply_bold_to_changed_chars(html_content: str, text: str, changed_positions
             
             # Check if this character position changed
             if text_pos in changed_positions:
-                # Add or update bold in style
+                # Add or update bold and underline in style
                 if 'font-weight' not in style:
                     style = style.rstrip('; ') + '; font-weight: bold'
                 else:
                     style = re.sub(r'font-weight:\s*[^;]+', 'font-weight: bold', style)
+                # Add underline
+                if 'text-decoration' not in style:
+                    style = style.rstrip('; ') + '; text-decoration: underline'
+                else:
+                    style = re.sub(r'text-decoration:\s*[^;]+', 'text-decoration: underline', style)
             
             # Rebuild span
             result_html += open_tag + style + quote_style + char + close_tag
@@ -1111,8 +1146,8 @@ def _apply_bold_to_changed_chars(html_content: str, text: str, changed_positions
             char = inner_html[i]
             if text_pos < len(text) and text[text_pos] == char:
                 if text_pos in changed_positions:
-                    # Character without span but changed - wrap in span with bold
-                    result_html += f"<span style='font-weight: bold;'>{char}</span>"
+                    # Character without span but changed - wrap in span with bold and underline
+                    result_html += f"<span style='font-weight: bold; text-decoration: underline;'>{char}</span>"
                 else:
                     result_html += char
                 text_pos += 1
@@ -1166,30 +1201,18 @@ def create_validation_comparison(
     before_html_with_bold = _apply_bold_to_changed_chars(before_validation_html, text, changed_positions)
     after_html_with_bold = _apply_bold_to_changed_chars(after_validation_html, text, changed_positions)
     
-    html = "<div style='padding: 15px; background: #f8f9fa; border-radius: 5px;'>"
-    html += "<h5 style='color: #2c3e50; margin-top: 0; margin-bottom: 15px;'>Sentence Comparison: Before and After Validation</h5>"
+    html = "<div style='padding: 10px; background: #f8f9fa; border-radius: 5px;'>"
     
     # Before validation version (after Hagen-Faes model)
-    html += "<div style='margin-bottom: 20px; padding: 15px; background: #e8f4f8; border-left: 4px solid #3498db; border-radius: 4px;'>"
-    html += "<p style='margin: 0 0 10px 0; font-weight: bold; color: #2c3e50; font-size: 14px;'>Version 1: After Hagen-Faes Model (Before Validation)</p>"
+    html += "<div style='margin-bottom: 10px; padding: 7px; background: #e8f4f8; border-left: 4px solid #3498db; border-radius: 4px;'>"
+    html += "<p style='margin: 0 0 5px 0; font-weight: bold; color: #2c3e50; font-size: 11px; text-align: right;'>Version 1: After Hagen-Faes Model (Before Validation)</p>"
     html += before_html_with_bold
     html += "</div>"
     
     # After validation version (with bold for changed characters)
-    html += "<div style='padding: 15px; background: #f0f8e8; border-left: 4px solid #27ae60; border-radius: 4px;'>"
-    html += "<p style='margin: 0 0 10px 0; font-weight: bold; color: #2c3e50; font-size: 14px;'>Version 2: After Optional Validation (Double Check)</p>"
+    html += "<div style='padding: 7px; background: #f0f8e8; border-left: 4px solid #27ae60; border-radius: 4px;'>"
+    html += "<p style='margin: 0 0 5px 0; font-weight: bold; color: #2c3e50; font-size: 11px; text-align: right;'>Version 2: After Optional Validation (Double Check)</p>"
     html += after_html_with_bold
-    html += "</div>"
-    
-    # Add note about differences
-    changed_count = len(changed_positions)
-    html += "<div style='margin-top: 15px; padding: 10px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;'>"
-    html += f"<p style='margin: 0; color: #856404; font-size: 12px;'><strong>Note:</strong> "
-    if changed_count > 0:
-        html += f"<strong>{changed_count} character(s)</strong> changed color after validation (shown in <strong>bold</strong> in both versions for easy comparison). "
-    else:
-        html += "No color changes detected after validation. "
-    html += "Green indicates correct phonemes, red indicates mismatches, orange indicates missing phonemes, and blue indicates extra phonemes.</p>"
     html += "</div>"
     
     html += "</div>"

@@ -399,11 +399,61 @@ def initialize_components():
             mfa_aligner = None
 
 
+def normalize_chat_history(chat_history: Optional[List]) -> List:
+    """
+    Normalize chat history to the format expected by Gradio Chatbot.
+    Converts old tuple format [user_msg, assistant_msg] to dict format.
+    
+    Args:
+        chat_history: Chat history in any format (None, list of tuples, or list of dicts)
+        
+    Returns:
+        List of message dictionaries with 'role' and 'content' keys
+    """
+    if chat_history is None:
+        return []
+    
+    normalized = []
+    for msg in chat_history:
+        if isinstance(msg, dict):
+            # Already in correct format
+            normalized.append(msg)
+        elif isinstance(msg, (list, tuple)) and len(msg) == 2:
+            # Old tuple format [user_msg, assistant_msg] - convert to dict format
+            user_msg, assistant_msg = msg
+            normalized.append({"role": "user", "content": user_msg})
+            normalized.append({"role": "assistant", "content": assistant_msg})
+        else:
+            # Unknown format - skip
+            continue
+    
+    return normalized
+
+
+def add_to_chat_history(chat_history: Optional[List], user_message: str, assistant_message: str) -> List:
+    """
+    Add a new message pair to chat history in the correct format.
+    
+    Args:
+        chat_history: Current chat history (any format)
+        user_message: User message text
+        assistant_message: Assistant message text (HTML)
+        
+    Returns:
+        Updated chat history in normalized format
+    """
+    normalized = normalize_chat_history(chat_history)
+    normalized.append({"role": "user", "content": user_message})
+    normalized.append({"role": "assistant", "content": assistant_message})
+    return normalized
+
+
 def process_pronunciation(
     text: str,
     audio_file: Optional[Tuple[int, np.ndarray]] = None,
-    enable_validation: bool = False
-) -> Tuple[str, str, str, str, str, str, str, str]:
+    enable_validation: bool = False,
+    chat_history: Optional[List] = None
+) -> Tuple[List, str, str]:
     """
     Process pronunciation validation.
     
@@ -411,36 +461,31 @@ def process_pronunciation(
         text: German text input
         audio_file: Tuple of (sample_rate, audio_array) from Gradio
         enable_validation: Whether to enable optional validation through trained models
+        chat_history: Current chat history
         
     Returns:
         Tuple of:
-        1. Text with sources (HTML)
-        2. Expected phonemes (HTML)
-        3. Recognized phonemes (HTML)
-        4. Side-by-side comparison (HTML)
-        5. Colored text (HTML)
-        6. Detailed report (HTML)
-        7. Technical information (HTML)
-        8. Raw phonemes (before filtering) (HTML)
+        1. Updated chat history (list of [user_message, assistant_message] tuples)
+        2. Original text input (to preserve it)
+        3. Original audio input (to preserve it)
     """
     start_time = time.time()
     
     # Initialize output variables to avoid NameError
-    expected_html = ""
-    recognized_html = ""
     side_by_side_html = ""
     colored_text_html = ""
     detailed_report_html = ""
     technical_html = ""
     raw_phonemes_html = ""
-    text_with_sources_html = ""
     
     # Check if text is empty - if so, we'll use ASR to get text from audio
     text_is_empty = not text or not text.strip()
     
     if audio_file is None:
         error_html = "<div style='color: orange; padding: 10px;'>Please record or upload audio.</div>"
-        return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html)
+        user_message = f"Text: {text if text else 'No text'}" + (f" | Validation: {'Enabled' if enable_validation else 'Disabled'}" if enable_validation else "")
+        chat_history = add_to_chat_history(chat_history, user_message, error_html)
+        return (chat_history, text, audio_file)
     
     try:
         # Initialize components
@@ -452,7 +497,9 @@ def process_pronunciation(
             sample_rate, audio_array = audio_file
         else:
             error_html = "<div style='color: red; padding: 10px;'>Invalid audio format.</div>"
-            return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html)
+            user_message = f"Text: {text if text else 'No text'}" + (f" | Validation: {'Enabled' if enable_validation else 'Disabled'}" if enable_validation else "")
+            chat_history = add_to_chat_history(chat_history, user_message, error_html)
+            return (chat_history, text, audio_file)
         
         # Save audio to temporary file
         audio_save_start = time.time()
@@ -543,14 +590,20 @@ def process_pronunciation(
                         
                         if not recognized_text or not recognized_text.strip():
                             error_html = "<div style='color: orange; padding: 10px;'>Could not recognize text from audio. Please try again or enter text manually.</div>"
-                            return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html)
+                            user_message = f"Text: {text if text else 'Audio input'}" + (f" | Validation: {'Enabled' if enable_validation else 'Disabled'}" if enable_validation else "")
+                            chat_history = add_to_chat_history(chat_history, user_message, error_html)
+                            return (chat_history, text, audio_file)
                     except Exception as e:
                         print(f"Error: ASR failed: {e}")
                         error_html = f"<div style='color: red; padding: 10px;'>Failed to recognize text from audio: {str(e)}</div>"
-                        return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html)
+                        user_message = f"Text: {text if text else 'Audio input'}" + (f" | Validation: {'Enabled' if enable_validation else 'Disabled'}" if enable_validation else "")
+                        chat_history = add_to_chat_history(chat_history, user_message, error_html)
+                        return (chat_history, text, audio_file)
                 else:
                     error_html = "<div style='color: orange; padding: 10px;'>ASR is not available. Please enter text manually or enable ASR in configuration.</div>"
-                    return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html)
+                    user_message = f"Text: {text if text else 'Audio input'}" + (f" | Validation: {'Enabled' if enable_validation else 'Disabled'}" if enable_validation else "")
+                    chat_history = add_to_chat_history(chat_history, user_message, error_html)
+                    return (chat_history, text, audio_file)
             elif asr_recognizer and config.ASR_ENABLED and config.ASR_ALWAYS_RUN:
                 # Text is provided, ASR is optional (for comparison)
                 # Only run if ASR_ALWAYS_RUN is enabled to save time
@@ -633,37 +686,17 @@ def process_pronunciation(
                 # Create empty raw phonemes display for high WER case
                 raw_phonemes_html = "<div style='color: gray; padding: 10px;'>Raw phonemes not available (phoneme analysis skipped due to high WER).</div>"
                 
-                # Create text with sources display even for high WER case
-                from modules.visualization import create_text_with_sources_display
-                # For high WER, we still want to show the expected text with sources
-                # Use recognized text for phonemes if available, otherwise use expected text
-                text_for_sources = recognized_text if recognized_text else text
-                # Get expected phonemes for display (even though we skip detailed analysis)
-                # Import get_expected_phonemes here to avoid any scope issues
-                from modules.g2p_module import get_expected_phonemes as get_expected_phonemes_func
-                try:
-                    expected_phonemes_dict_for_sources = get_expected_phonemes_func(text_for_sources)
-                    text_with_sources_html = create_text_with_sources_display(
-                        text_for_sources,
-                        expected_phonemes_dict_for_sources
-                    )
-                except Exception as e:
-                    # Fallback if get_expected_phonemes fails
-                    print(f"Warning: Failed to get expected phonemes for text with sources: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    text_with_sources_html = f"<div style='padding: 15px; background: #f8f9fa; border-radius: 5px;'><p>Original Text: {text_for_sources}</p></div>"
+                # Build chat message for high WER case
+                assistant_message = f"""
+                <div style="padding: 15px; background: #f8f9fa; border-radius: 5px; margin-bottom: 10px;">
+                    {comparison_html}
+                    {technical_html}
+                </div>
+                """
                 
-                return (
-                    text_with_sources_html,  # First output: text with sources
-                    empty_html,
-                    empty_html,
-                    comparison_html,
-                    comparison_html,
-                    comparison_html,
-                    technical_html,
-                    raw_phonemes_html
-                )
+                user_message = f"Text: {text}" + (f" | Validation: {'Enabled' if enable_validation else 'Disabled'}" if enable_validation else "")
+                chat_history = add_to_chat_history(chat_history, user_message, assistant_message)
+                return (chat_history, text, audio_file)
             
             # Stage 5: G2P - Get phonemes from recognized text (or expected text if ASR not available)
             # Use recognized text for phoneme analysis if available, otherwise use expected text
@@ -678,7 +711,9 @@ def process_pronunciation(
             
             if not expected_phonemes:
                 error_html = "<div style='color: red; padding: 10px;'>Failed to extract expected phonemes from text.</div>"
-                return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html)
+                user_message = f"Text: {text_for_phonemes}" + (f" | Validation: {'Enabled' if enable_validation else 'Disabled'}" if enable_validation else "")
+                chat_history = add_to_chat_history(chat_history, user_message, error_html)
+                return (chat_history, text, audio_file)
             
             # Stage 3: Phoneme Recognition (Wav2Vec2 XLSR-53 eSpeak)
             phoneme_rec_start = time.time()
@@ -716,7 +751,20 @@ def process_pronunciation(
                 error_html = "<div style='color: orange; padding: 10px;'>No phonemes recognized. Audio may be unclear.</div>"
                 # Create raw phonemes display even if filtered is empty
                 raw_phonemes_html = create_raw_phonemes_display(raw_phonemes)
-                return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, raw_phonemes_html)
+                assistant_message = f"""
+                <div style="padding: 15px; background: #f8f9fa; border-radius: 5px; margin-bottom: 10px;">
+                    {error_html}
+                    <details style="margin-top: 10px;">
+                        <summary style="cursor: pointer; color: #0066cc; text-decoration: underline;">Show phonemes</summary>
+                        <div style="margin-top: 10px;">
+                            {raw_phonemes_html}
+                        </div>
+                    </details>
+                </div>
+                """
+                user_message = f"Text: {text_for_phonemes}" + (f" | Validation: {'Enabled' if enable_validation else 'Disabled'}" if enable_validation else "")
+                chat_history = add_to_chat_history(chat_history, user_message, assistant_message)
+                return (chat_history, text, audio_file)
             
             # Stage 5: Forced Alignment (for recognized phonemes)
             # Load waveform for forced alignment
@@ -1021,25 +1069,7 @@ def process_pronunciation(
             validation_elapsed = (time.time() - validation_start) * 1000            
             # Stage 10: Visualization
             viz_start = time.time()
-            # Output 0: Text with source information (for debugging)
-            from modules.visualization import create_text_with_sources_display
-            viz_text_sources_start = time.time()
-            text_with_sources_html = create_text_with_sources_display(
-                text_for_phonemes,
-                expected_phonemes_dict
-            )
-            viz_text_sources_elapsed = (time.time() - viz_text_sources_start) * 1000
-            
-            # Output 1: Expected phonemes (show expected phonemes directly, with spaces between phonemes)
-            expected_phonemes_str = ' '.join(expected_phonemes)
-            expected_html = f"<div style='font-family: monospace; font-size: 14px;'><p>{expected_phonemes_str}</p></div>"
-            
-            # Output 2: Recognized phonemes
-            # Use raw_phonemes directly - model already outputs accurate IPA phonemes without filtering            
-            viz_recognized_start = time.time()
-            recognized_html = create_simple_phoneme_comparison([], raw_phonemes)
-            viz_recognized_elapsed = (time.time() - viz_recognized_start) * 1000            
-            # Output 3: Side-by-side comparison
+            # Output 0: Side-by-side comparison
             viz_side_by_side_start = time.time()
             side_by_side_html = create_side_by_side_comparison(
                 expected_phonemes,
@@ -1047,7 +1077,7 @@ def process_pronunciation(
                 aligned_pairs
             )
             viz_side_by_side_elapsed = (time.time() - viz_side_by_side_start) * 1000            
-            # Output 4: Colored text
+            # Output 1: Colored text
             # Convert aligned_pairs to dict format for visualization (for backward compatibility)
             aligned_pairs_dict = []
             for i, (exp, rec) in enumerate(aligned_pairs):
@@ -1122,7 +1152,7 @@ def process_pronunciation(
                 colored_text_html = colored_text_html_after
             
             viz_colored_elapsed = (time.time() - viz_colored_start) * 1000            
-            # Output 5: Detailed report (with WER and PER)
+            # Output 2: Detailed report (with WER and PER)
             # Don't show WER if text was empty (WER not calculated)
             show_wer_in_report = config.SHOW_WER and not text_is_empty and wer_result is not None
             text_for_report = recognized_text if text_is_empty else text
@@ -1136,7 +1166,7 @@ def process_pronunciation(
                 recognized_text=recognized_text
             )
             viz_report_elapsed = (time.time() - viz_report_start) * 1000            
-            # Output 6: Technical information
+            # Output 3: Technical information
             wer_info = ""
             # Only show WER if text was provided (not empty) and WER was calculated
             if not text_is_empty and wer_result and config.SHOW_WER:
@@ -1188,22 +1218,39 @@ def process_pronunciation(
             </div>
             """
             
-            # Output 7: Raw phonemes (before filtering)
+            # Output 4: Raw phonemes (before filtering)
             viz_raw_start = time.time()
             raw_phonemes_html = create_raw_phonemes_display(raw_phonemes)
             viz_raw_elapsed = (time.time() - viz_raw_start) * 1000
             viz_elapsed = (time.time() - viz_start) * 1000            
-            total_elapsed = (time.time() - start_time) * 1000            
-            return (
-                text_with_sources_html,  # First output: text with sources
-                expected_html,
-                recognized_html,
-                side_by_side_html,
-                colored_text_html,
-                detailed_report_html,
-                technical_html,
-                raw_phonemes_html
-            )
+            total_elapsed = (time.time() - start_time) * 1000
+            
+            # Build chat message with expandable phoneme details
+            phoneme_details_html = f"""
+            <details style="margin-top: 10px;">
+                <summary style="cursor: pointer; color: #0066cc; text-decoration: underline;">Show phonemes</summary>
+                <div style="margin-top: 10px;">
+                    {side_by_side_html}
+                </div>
+            </details>
+            """
+            
+            # Create main chat message with colored text and phoneme details
+            assistant_message = f"""
+            <div style="padding: 10px; background: #f8f9fa; border-radius: 5px; margin-bottom: 10px;">
+                {colored_text_html}
+                {phoneme_details_html}
+            </div>
+            """
+            
+            # Build user message
+            user_text = text if text and text.strip() else (recognized_text if recognized_text else "Audio input")
+            user_message = f"Text: {user_text}" + (f" | Validation: {'Enabled' if enable_validation else 'Disabled'}" if enable_validation else "")
+            
+            # Update chat history
+            chat_history = add_to_chat_history(chat_history, user_message, assistant_message)
+            
+            return (chat_history, text, audio_file)
         
         finally:
             # Clean up temp files (but keep trimmed_audio_path for user to listen)
@@ -1227,7 +1274,10 @@ def process_pronunciation(
             </details>
         </div>
         """
-        return (error_html, error_html, error_html, error_html, error_html, error_html, error_html, error_html)
+        # Update chat history with error
+        user_message = f"Text: {text if text else 'Audio input'}" + (f" | Validation: {'Enabled' if enable_validation else 'Disabled'}" if enable_validation else "")
+        chat_history = add_to_chat_history(chat_history, user_message, error_html)
+        return (chat_history, text, audio_file)
 
 
 def load_models_in_background():
@@ -1262,71 +1312,213 @@ def create_interface():
     # Don't initialize components on startup - let them load in background
     # This allows browser to open quickly
     
-    with gr.Blocks(title="German Pronunciation Diagnostic App (L2-Trainer)", theme=gr.themes.Soft()) as app:
+    with gr.Blocks(title="German Pronunciation Diagnostic App (L2-Trainer)", theme=gr.themes.Soft(), css="""
+        /* Установка шрифта для всего интерфейса */
+        .gradio-container, .gradio-container * {
+            font-family: 'Consolas', monospace !important;
+        }
+        .gradio-container .chatbot {
+            height: 70vh !important;
+            min-height: 400px;
+        }
+        /* Выравнивание элементов по высоте - работает для всех строк с equal_height */
+        .gradio-container .row > .column {
+            display: flex !important;
+            align-items: stretch !important;
+        }
+        .gradio-container .row > .column > .block {
+            display: flex !important;
+            flex-direction: column !important;
+            width: 100% !important;
+        }
+        /* Выравнивание текстового поля по высоте - занимает всю доступную область */
+        .gradio-container .row > .column:first-child .form {
+            display: flex !important;
+            flex-direction: column !important;
+            height: 100% !important;
+        }
+        .gradio-container .row > .column:first-child .form .block {
+            flex: 1 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            height: 100% !important;
+        }
+        /* Контейнер textarea занимает всю высоту */
+        .gradio-container .row > .column:first-child .form .block > label {
+            flex: 1 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            height: 100% !important;
+        }
+        .gradio-container .row > .column:first-child .form .block > label > .input-container {
+            flex: 1 !important;
+            display: flex !important;
+            height: 100% !important;
+        }
+        /* Textarea занимает всю высоту блока */
+        .gradio-container .row > .column:first-child textarea {
+            flex: 1 !important;
+            height: 100% !important;
+            min-height: 100% !important;
+            resize: none !important;
+        }
+        /* Выравнивание чекбокса и кнопки по правому краю в одной колонке */
+        .gradio-container .row > .column:last-child {
+            justify-content: flex-end !important;
+            align-items: flex-end !important;
+        }
+        .gradio-container .row > .column:last-child .block {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: flex-end !important;
+            gap: 10px !important;
+        }
+        /* Улучшение отображения фонемных последовательностей */
+        /* Контейнеры с фонемами должны использовать всю доступную ширину */
+        .gradio-container div[data-block-id='side-by-side-comparison'] {
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+        }
+        /* Фонемные последовательности должны распределяться по всей ширине */
+        .gradio-container div[data-block-id='side-by-side-comparison'] > div > div {
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+        }
+        /* Предотвращение переноса фонемных последовательностей */
+        .gradio-container div[style*="font-size: 0"][style*="white-space"] {
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+        }
+        /* Улучшение отображения inline-block элементов с фонемами */
+        .gradio-container div[style*="font-size: 0"] > div[style*="display: inline-block"] {
+            white-space: nowrap !important;
+            min-width: fit-content !important;
+        }
+        /* Распределение фонем по всей ширине контейнера */
+        /* Контейнер должен использовать всю доступную ширину */
+        .gradio-container div[style*="font-size: 0"][style*="overflow-x: auto"] {
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+        }
+        /* Внутренний контейнер с фонемами должен использовать всю ширину без переноса */
+        .gradio-container div[style*="font-size: 0"][style*="overflow-x: auto"] > div[style*="display: inline-block"] {
+            width: 100% !important;
+            min-width: fit-content !important;
+            white-space: nowrap !important;
+        }
+        /* Горизонтальная прокрутка для длинных последовательностей */
+        .gradio-container div[style*="overflow-x: auto"] {
+            scrollbar-width: thin !important;
+            scrollbar-color: #cbd5e0 #f7fafc !important;
+        }
+        .gradio-container div[style*="overflow-x: auto"]::-webkit-scrollbar {
+            height: 6px !important;
+        }
+        .gradio-container div[style*="overflow-x: auto"]::-webkit-scrollbar-track {
+            background: #f7fafc !important;
+        }
+        .gradio-container div[style*="overflow-x: auto"]::-webkit-scrollbar-thumb {
+            background: #cbd5e0 !important;
+            border-radius: 3px !important;
+        }
+        /* Адаптивное распределение для разных размеров экрана */
+        @media (min-width: 1200px) {
+            .gradio-container div[data-block-id='side-by-side-comparison'] {
+                max-width: calc(100vw - 200px) !important;
+            }
+        }
+        @media (max-width: 768px) {
+            .gradio-container div[data-block-id='side-by-side-comparison'] {
+                max-width: calc(100vw - 40px) !important;
+            }
+        }
+    """) as app:
         gr.Markdown("""
         # German Pronunciation Diagnostic App (L2-Trainer)
         
         Enter a German sentence and record your pronunciation.
         """)
         
-        with gr.Row():
-            with gr.Column():
+        # Chat interface - full width, 70% height
+        chatbot = gr.Chatbot(
+            label="Pronunciation Analysis",
+            height=600,  # Approximately 70% of typical screen height (will be responsive)
+            show_label=False,
+            container=True
+        )
+        
+        # Controls below chat - in a row with equal height
+        with gr.Row(equal_height=True):
+            with gr.Column(scale=5):
                 text_input = gr.Textbox(
                     label="German Text",
                     placeholder="Enter a German sentence here...",
-                    lines=3
+                    lines=2,
+                    show_label=True
                 )
-                
-                audio_input = gr.Audio(
-                    label="Record or Upload Audio",
-                    type="numpy",
-                    sources=["microphone", "upload"]
-                )
-                
-                validation_checkbox = gr.Checkbox(
-                    label="Enable optional validation through trained models",
-                    value=False,
-                    info="Increases processing time but improves accuracy. Uses MFA alignment for better precision."
-                )
-                
-                process_btn = gr.Button("Validate Pronunciation", variant="primary")
             
-            with gr.Column():
-                text_with_sources_output = gr.HTML(label="0. Original Text with Transcription Sources")
-                expected_output = gr.HTML(label="1. Expected Phonemes")
-                recognized_output = gr.HTML(label="2. Recognized Phonemes")
-                comparison_output = gr.HTML(label="3. Side-by-Side Comparison")
-                colored_output = gr.HTML(label="4. Colored Text")
-                report_output = gr.HTML(label="5. Detailed Report")
-                technical_output = gr.HTML(label="6. Technical Information")
-                raw_phonemes_output = gr.HTML(label="7. Raw Phonemes (Before Filtering)")
+            with gr.Column(scale=1, min_width=200):
+                audio_input = gr.Audio(
+                    label="Audio Input",
+                    type="numpy",
+                    sources=["microphone", "upload"],
+                    show_label=True
+                )
+            
+            with gr.Column(scale=1, min_width=150):
+                validation_checkbox = gr.Checkbox(
+                    label="Enable validation",
+                    value=False,
+                    show_label=True
+                )
+                process_btn = gr.Button("Validate Pronunciation", variant="primary", size="sm")
         
-        # Examples
+        # Examples - first row
         gr.Examples(
             examples=[
                 ["Hallo, wie geht es dir?", None],
                 ["Ich habe einen Apfel.", None],
-                ["Das Wetter ist schön heute.", None],
                 ["Der Bär trägt einen Ball.", None],
                 ["Ich möchte ein Stück Kuchen.", None],
             ],
             inputs=[text_input, audio_input]
         )
         
+        # Custom button for loading text and audio
+        def load_example_text_and_audio():
+            """Load example text and audio file."""
+            text = "Im Grundlagenstreit der Mathematik entspräche der nominalistischen Position die formalistische Richtung."
+            audio_path = "/Volumes/SSanDisk/audio_data/data_wav/TV-2021.02-Neutral/4aeeae88-0777-2c8c-5c93-2e844a462e49---7c5cf6a7351fb3ca39004d5e49566c09.wav"
+            
+            # Load audio file
+            try:
+                audio_array, sample_rate = librosa.load(audio_path, sr=None, mono=True)
+                # Gradio expects (sample_rate, audio_array) tuple
+                audio_tuple = (sample_rate, audio_array)
+                return text, audio_tuple
+            except Exception as e:
+                print(f"Error loading audio file: {e}")
+                # Return text only if audio fails to load
+                return text, None
+        
+        # Second row of examples with custom button
+        with gr.Row():
+            example_btn = gr.Button("Im Grundlagenstreit der...", variant="secondary", size="sm")
+            example_btn.click(
+                fn=load_example_text_and_audio,
+                inputs=[],
+                outputs=[text_input, audio_input]
+            )
+        
         # Process button
         process_btn.click(
             fn=process_pronunciation,
-            inputs=[text_input, audio_input, validation_checkbox],
-            outputs=[
-                text_with_sources_output,
-                expected_output,
-                recognized_output,
-                comparison_output,
-                colored_output,
-                report_output,
-                technical_output,
-                raw_phonemes_output
-            ]
+            inputs=[text_input, audio_input, validation_checkbox, chatbot],
+            outputs=[chatbot, text_input, audio_input]
         )
         
         gr.Markdown("""
