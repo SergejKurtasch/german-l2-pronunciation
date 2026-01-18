@@ -88,7 +88,7 @@ def extract_metrics_from_notebook(notebook_path):
     return metrics
 
 def main():
-    base_path = Path('/Volumes/SSanDisk/SpeechRec-German-diagnostic/notebooks')
+    base_path = Path(__file__).parent / "notebooks"
     ctc_path = base_path / 'ctc_validation_phoneme_analysis.ipynb'
     mfa_path = base_path / 'mfa_validation_phoneme_analysis.ipynb'
     

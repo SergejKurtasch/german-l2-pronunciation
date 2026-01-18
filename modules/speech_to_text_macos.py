@@ -69,7 +69,8 @@ class MacOSSpeechToTextRecognizer:
             if HAS_AUTHORIZATION_CONSTANTS:
                 # #region agent log
                 import json, time
-                with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                with open(log_path, 'a') as f:
                     f.write(json.dumps({"sessionId":"debug-session","runId":"asr-init","hypothesisId":"G","location":"modules/speech_to_text_macos.py:_initialize_recognizer:check_auth","message":"Checking Speech Recognition authorization","data":{},"timestamp":int(time.time()*1000)})+'\n')
                 # #endregion
                 # Note: Authorization is usually handled by macOS automatically on first use
@@ -83,7 +84,8 @@ class MacOSSpeechToTextRecognizer:
             is_available = self.recognizer.isAvailable()
             # #region agent log
             import json, time
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+            with open(log_path, 'a') as f:
                 f.write(json.dumps({"sessionId":"debug-session","runId":"asr-init","hypothesisId":"G","location":"modules/speech_to_text_macos.py:_initialize_recognizer:availability","message":"Checking recognizer availability","data":{"is_available":is_available},"timestamp":int(time.time()*1000)})+'\n')
             # #endregion
             
@@ -150,7 +152,8 @@ class MacOSSpeechToTextRecognizer:
         
         # #region agent log
         import json
-        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+        with open(log_path, 'a') as f:
             f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"H","location":"modules/speech_to_text_macos.py:transcribe:request_created","message":"Recognition request created","data":{"audio_path":audio_path,"url_exists":Path(audio_path).exists()},"timestamp":int(time.time()*1000)})+'\n')
         # #endregion
         
@@ -163,14 +166,16 @@ class MacOSSpeechToTextRecognizer:
             # #region agent log
             import json
             handler_start = time.time()
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+            with open(log_path, 'a') as f:
                 f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"E","location":"modules/speech_to_text_macos.py:recognition_handler:called","message":"Recognition handler called","data":{"has_error":error is not None,"has_result":result is not None,"error_str":str(error) if error else None},"timestamp":int(time.time()*1000)})+'\n')
             # #endregion
             
             with result_container['lock']:
                 if error:
                     # #region agent log
-                    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                    log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                    with open(log_path, 'a') as f:
                         f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"E","location":"modules/speech_to_text_macos.py:recognition_handler:error","message":"Recognition handler received error","data":{"error":str(error),"error_type":type(error).__name__ if error else None},"timestamp":int(time.time()*1000)})+'\n')
                     # #endregion
                     result_container['error'] = error
@@ -180,13 +185,15 @@ class MacOSSpeechToTextRecognizer:
                 elif result:
                     is_final = result.isFinal()
                     # #region agent log
-                    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                    log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                    with open(log_path, 'a') as f:
                         f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"E","location":"modules/speech_to_text_macos.py:recognition_handler:result","message":"Recognition handler received result","data":{"is_final":is_final},"timestamp":int(time.time()*1000)})+'\n')
                     # #endregion
                     if is_final:
                         transcribed_text = result.bestTranscription().formattedString()
                         # #region agent log
-                        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                        with open(log_path, 'a') as f:
                             f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"E","location":"modules/speech_to_text_macos.py:recognition_handler:final","message":"Recognition handler received final result","data":{"transcribed_text":transcribed_text,"text_length":len(transcribed_text)},"timestamp":int(time.time()*1000)})+'\n')
                         # #endregion
                         result_container['text'] = transcribed_text
@@ -197,14 +204,16 @@ class MacOSSpeechToTextRecognizer:
                         # Partial result - we'll wait for final
                         partial_text = result.bestTranscription().formattedString()
                         # #region agent log
-                        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                        with open(log_path, 'a') as f:
                             f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"E","location":"modules/speech_to_text_macos.py:recognition_handler:partial","message":"Recognition handler received partial result","data":{"partial_text":partial_text},"timestamp":int(time.time()*1000)})+'\n')
                         # #endregion
                         if verbose:
                             print(f"Partial transcription: {partial_text}")
                 else:
                     # #region agent log
-                    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                    log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                    with open(log_path, 'a') as f:
                         f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"E","location":"modules/speech_to_text_macos.py:recognition_handler:no_result_no_error","message":"Recognition handler called with no result and no error","data":{},"timestamp":int(time.time()*1000)})+'\n')
                     # #endregion
         
@@ -213,7 +222,8 @@ class MacOSSpeechToTextRecognizer:
             """Run recognition in a separate thread with run loop."""
             # #region agent log
             import json
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+            with open(log_path, 'a') as f:
                 f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"F","location":"modules/speech_to_text_macos.py:recognition_thread:start","message":"Recognition thread started","data":{},"timestamp":int(time.time()*1000)})+'\n')
             # #endregion
             
@@ -221,7 +231,8 @@ class MacOSSpeechToTextRecognizer:
             run_loop_ref['loop'] = run_loop.getCFRunLoop()
             
             # #region agent log
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+            with open(log_path, 'a') as f:
                 f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"F","location":"modules/speech_to_text_macos.py:recognition_thread:before_task","message":"Creating recognition task","data":{"recognizer_available":recognizer_to_use.isAvailable() if recognizer_to_use else False},"timestamp":int(time.time()*1000)})+'\n')
             # #endregion
             
@@ -232,13 +243,15 @@ class MacOSSpeechToTextRecognizer:
             )
             
             # #region agent log
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+            with open(log_path, 'a') as f:
                 f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"F","location":"modules/speech_to_text_macos.py:recognition_thread:task_created","message":"Recognition task created","data":{"task_is_none":task is None},"timestamp":int(time.time()*1000)})+'\n')
             # #endregion
             
             if not task:
                 # #region agent log
-                with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                with open(log_path, 'a') as f:
                     f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"F","location":"modules/speech_to_text_macos.py:recognition_thread:task_failed","message":"Failed to create recognition task","data":{},"timestamp":int(time.time()*1000)})+'\n')
                 # #endregion
                 with result_container['lock']:
@@ -248,7 +261,8 @@ class MacOSSpeechToTextRecognizer:
                 return
             
             # #region agent log
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+            with open(log_path, 'a') as f:
                 f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"F","location":"modules/speech_to_text_macos.py:recognition_thread:before_runloop","message":"Starting run loop","data":{},"timestamp":int(time.time()*1000)})+'\n')
             # #endregion
             
@@ -262,7 +276,8 @@ class MacOSSpeechToTextRecognizer:
             while True:
                 # #region agent log
                 run_loop_check_time = time.time()
-                with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                with open(log_path, 'a') as f:
                     f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"F","location":"modules/speech_to_text_macos.py:recognition_thread:runloop_iteration","message":"Run loop iteration","data":{"task_state":task.state() if hasattr(task, 'state') else "unknown"},"timestamp":int(run_loop_check_time*1000)})+'\n')
                 # #endregion
                 
@@ -277,13 +292,15 @@ class MacOSSpeechToTextRecognizer:
                 # Check if we've exceeded timeout
                 if NSDate.date().timeIntervalSinceDate_(run_until) > 0:
                     # #region agent log
-                    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                    log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                    with open(log_path, 'a') as f:
                         f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"F","location":"modules/speech_to_text_macos.py:recognition_thread:runloop_timeout","message":"Run loop timeout in thread","data":{},"timestamp":int(time.time()*1000)})+'\n')
                     # #endregion
                     break
             
             # #region agent log
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+            with open(log_path, 'a') as f:
                 f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"F","location":"modules/speech_to_text_macos.py:recognition_thread:runloop_exited","message":"Run loop exited","data":{},"timestamp":int(time.time()*1000)})+'\n')
             # #endregion
         
@@ -304,14 +321,16 @@ class MacOSSpeechToTextRecognizer:
                 if result_container['completed']:
                     # #region agent log
                     import json
-                    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                    log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                    with open(log_path, 'a') as f:
                         f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"F","location":"modules/speech_to_text_macos.py:transcribe:completed","message":"Recognition completed","data":{"elapsed_seconds":elapsed,"has_text":bool(result_container['text']),"has_error":result_container['error'] is not None},"timestamp":int(current_time*1000),"elapsed_ms":int(elapsed*1000)})+'\n')
                     # #endregion
                     break
                 if elapsed > timeout:
                     # #region agent log
                     import json
-                    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                    log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                    with open(log_path, 'a') as f:
                         f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"F","location":"modules/speech_to_text_macos.py:transcribe:timeout","message":"Recognition timeout","data":{"elapsed_seconds":elapsed,"has_text":bool(result_container['text']),"has_error":result_container['error'] is not None},"timestamp":int(current_time*1000),"elapsed_ms":int(elapsed*1000)})+'\n')
                     # #endregion
                     if run_loop_ref['loop']:
@@ -322,7 +341,8 @@ class MacOSSpeechToTextRecognizer:
             if current_time - last_log_time >= 5:
                 # #region agent log
                 import json
-                with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                with open(log_path, 'a') as f:
                     f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"F","location":"modules/speech_to_text_macos.py:transcribe:waiting","message":"Waiting for recognition","data":{"elapsed_seconds":elapsed},"timestamp":int(current_time*1000)})+'\n')
                 # #endregion
                 last_log_time = current_time

@@ -14,8 +14,8 @@ import seaborn as sns
 from collections import defaultdict
 
 # Add project to path
-notebook_dir = Path('/Volumes/SSanDisk/SpeechRec-German-diagnostic/notebooks')
-project_root = notebook_dir.parent
+notebook_dir = Path(__file__).parent / "notebooks"
+project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 # Try to load data from notebooks
@@ -246,7 +246,7 @@ def plot_timecode_comparison(comparison_data, save_path=None):
 if __name__ == '__main__':
     script = create_timecode_comparison_script()
     
-    output_path = Path('/Volumes/SSanDisk/SpeechRec-German-diagnostic/notebooks/timecode_comparison_code.py')
+    output_path = Path(__file__).parent / "notebooks" / "timecode_comparison_code.py"
     output_path.write_text(script)
     
     print(f"✓ Created timecode comparison script: {output_path}")

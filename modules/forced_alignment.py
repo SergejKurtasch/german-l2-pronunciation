@@ -3,6 +3,7 @@ Forced Alignment module using torchaudio for extracting precise phoneme segments
 """
 
 import torch
+from pathlib import Path
 from dataclasses import dataclass
 from typing import List, Dict, Optional
 import numpy as np
@@ -32,7 +33,8 @@ try:
     HAS_FORCED_ALIGN = hasattr(F, 'forced_align')
     
     # #region agent log
-    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+    log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+    with open(log_path, 'a') as f:
         f.write(json.dumps({"sessionId":"debug-session","runId":"debug","hypothesisId":"A","location":"forced_alignment.py:module_init","message":"TorchAudio import check","data":{"torchaudio_version":TORCHAUDIO_VERSION,"has_forced_align_attr":HAS_FORCED_ALIGN,"forced_align_type":str(type(getattr(F, 'forced_align', None))) if F else "F is None"},"timestamp":int(time.time()*1000)})+'\n')
     # #endregion
     
@@ -45,7 +47,8 @@ try:
             test_result = F.forced_align(test_emissions, test_targets, blank_id=0)
             FORCED_ALIGN_CHECK_RESULT = "works"
             # #region agent log
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+            with open(log_path, 'a') as f:
                 f.write(json.dumps({"sessionId":"debug-session","runId":"debug","hypothesisId":"A","location":"forced_alignment.py:module_init","message":"Forced align test call succeeded","data":{"test_result_type":str(type(test_result))},"timestamp":int(time.time()*1000)})+'\n')
             # #endregion
         except Exception as test_e:
@@ -57,13 +60,15 @@ try:
                 # This is expected for most TorchAudio installations
                 pass  # Silent - will use fallback method
             # #region agent log
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+            with open(log_path, 'a') as f:
                 f.write(json.dumps({"sessionId":"debug-session","runId":"debug","hypothesisId":"A","location":"forced_alignment.py:module_init","message":"Forced align test call failed","data":{"error_type":type(test_e).__name__,"error_message":str(test_e)},"timestamp":int(time.time()*1000)})+'\n')
             # #endregion
 except (ImportError, AttributeError) as e:
     FORCED_ALIGN_CHECK_RESULT = f"import_error: {str(e)}"
     # #region agent log
-    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+    log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+    with open(log_path, 'a') as f:
         f.write(json.dumps({"sessionId":"debug-session","runId":"debug","hypothesisId":"B","location":"forced_alignment.py:module_init","message":"TorchAudio import failed","data":{"error_type":type(e).__name__,"error_message":str(e)},"timestamp":int(time.time()*1000)})+'\n')
     # #endregion
 
@@ -91,7 +96,8 @@ class ForcedAligner:
         """
         self.blank_id = blank_id
         # #region agent log
-        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+        with open(log_path, 'a') as f:
             f.write(json.dumps({"sessionId":"debug-session","runId":"debug","hypothesisId":"C","location":"forced_alignment.py:__init__","message":"ForcedAligner initialized","data":{"blank_id":blank_id,"has_forced_align":HAS_FORCED_ALIGN,"has_ctc_aligner":HAS_CTC_ALIGNER,"torchaudio_version":TORCHAUDIO_VERSION,"check_result":FORCED_ALIGN_CHECK_RESULT},"timestamp":int(time.time()*1000)})+'\n')
         # #endregion
     
@@ -137,13 +143,15 @@ class ForcedAligner:
         targets = tokenized_labels.to(waveform.device)
         tokenize_elapsed = (time.time() - tokenize_start) * 1000
         # #region agent log
-        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+        with open(log_path, 'a') as f:
             f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"forced_alignment.py:extract_phoneme_segments:after_tokenize","message":"Labels tokenized","data":{"labels_count":len(labels),"token_ids_count":len(token_ids)},"timestamp":int(time.time()*1000),"elapsed_ms":int(tokenize_elapsed)})+'\n')
         # #endregion
         
         # Perform forced alignment
         # #region agent log
-        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+        with open(log_path, 'a') as f:
             f.write(json.dumps({"sessionId":"debug-session","runId":"debug","hypothesisId":"D","location":"forced_alignment.py:extract_phoneme_segments:before_alignment","message":"Before forced alignment attempt","data":{"has_forced_align":HAS_FORCED_ALIGN,"emissions_shape":list(emissions.shape) if emissions is not None else None,"targets_shape":list(targets.shape) if targets is not None else None,"blank_id":self.blank_id,"torchaudio_version":TORCHAUDIO_VERSION,"check_result":FORCED_ALIGN_CHECK_RESULT},"timestamp":int(time.time()*1000)})+'\n')
         # #endregion
         
@@ -151,35 +159,40 @@ class ForcedAligner:
             # Try CTC Forced Aligner as alternative
             if HAS_CTC_ALIGNER:
                 # #region agent log
-                with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                with open(log_path, 'a') as f:
                     f.write(json.dumps({"sessionId":"debug-session","runId":"debug","hypothesisId":"CTC","location":"forced_alignment.py:extract_phoneme_segments:using_ctc_aligner","message":"Using CTC Forced Aligner","data":{"check_result":FORCED_ALIGN_CHECK_RESULT},"timestamp":int(time.time()*1000)})+'\n')
                 # #endregion
                 ctc_start = time.time()
                 result = self._ctc_alignment(labels, emissions, dictionary, sample_rate, waveform, token_ids)
                 ctc_elapsed = (time.time() - ctc_start) * 1000
                 # #region agent log
-                with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                with open(log_path, 'a') as f:
                     f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"forced_alignment.py:extract_phoneme_segments:ctc_alignment","message":"CTC alignment completed","data":{"segments_count":len(result)},"timestamp":int(time.time()*1000),"elapsed_ms":int(ctc_elapsed)})+'\n')
                 # #endregion
                 return result
             else:
                 # Use simple fallback only if CTC aligner is also not available
                 # #region agent log
-                with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                with open(log_path, 'a') as f:
                     f.write(json.dumps({"sessionId":"debug-session","runId":"debug","hypothesisId":"A","location":"forced_alignment.py:extract_phoneme_segments:has_forced_align_false","message":"HAS_FORCED_ALIGN is False, using fallback","data":{"check_result":FORCED_ALIGN_CHECK_RESULT},"timestamp":int(time.time()*1000)})+'\n')
                 # #endregion
                 fallback_start = time.time()
                 result = self._fallback_alignment(labels, emissions, dictionary, sample_rate, waveform)
                 fallback_elapsed = (time.time() - fallback_start) * 1000
                 # #region agent log
-                with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                with open(log_path, 'a') as f:
                     f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"forced_alignment.py:extract_phoneme_segments:fallback","message":"Fallback alignment completed","data":{"segments_count":len(result)},"timestamp":int(time.time()*1000),"elapsed_ms":int(fallback_elapsed)})+'\n')
                 # #endregion
                 return result
         
         try:
             # #region agent log
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+            with open(log_path, 'a') as f:
                 f.write(json.dumps({"sessionId":"debug-session","runId":"debug","hypothesisId":"C","location":"forced_alignment.py:extract_phoneme_segments:before_forced_align_call","message":"Attempting forced_align call","data":{"emissions_device":str(emissions.device),"targets_device":str(targets.device),"emissions_dtype":str(emissions.dtype),"targets_dtype":str(targets.dtype)},"timestamp":int(time.time()*1000)})+'\n')
             # #endregion
             forced_align_start = time.time()
@@ -190,16 +203,19 @@ class ForcedAligner:
             )
             forced_align_elapsed = (time.time() - forced_align_start) * 1000
             # #region agent log
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+            with open(log_path, 'a') as f:
                 f.write(json.dumps({"sessionId":"debug-session","runId":"debug","hypothesisId":"C","location":"forced_alignment.py:extract_phoneme_segments:forced_align_success","message":"Forced align call succeeded","data":{"alignment_length":len(alignment) if alignment is not None else 0,"alignment_type":str(type(alignment)),"scores_type":str(type(scores))},"timestamp":int(time.time()*1000)})+'\n')
             # #endregion
             # #region agent log
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+            with open(log_path, 'a') as f:
                 f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"forced_alignment.py:extract_phoneme_segments:after_forced_align","message":"Forced alignment computation completed","data":{"alignment_length":len(alignment) if alignment is not None else 0},"timestamp":int(time.time()*1000),"elapsed_ms":int(forced_align_elapsed)})+'\n')
             # #endregion
         except Exception as e:
             # #region agent log
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+            with open(log_path, 'a') as f:
                 f.write(json.dumps({"sessionId":"debug-session","runId":"debug","hypothesisId":"A","location":"forced_alignment.py:extract_phoneme_segments:forced_align_exception","message":"Forced align call raised exception","data":{"error_type":type(e).__name__,"error_message":str(e),"error_repr":repr(e)},"timestamp":int(time.time()*1000)})+'\n')
             # #endregion
             # Only print error if it's unexpected (not the alignment extension error)
@@ -210,7 +226,8 @@ class ForcedAligner:
             result = self._fallback_alignment(labels, emissions, dictionary, sample_rate, waveform)
             fallback_elapsed = (time.time() - fallback_start) * 1000
             # #region agent log
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+            with open(log_path, 'a') as f:
                 f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"forced_alignment.py:extract_phoneme_segments:fallback_error","message":"Fallback alignment after error","data":{"segments_count":len(result),"error":str(e)},"timestamp":int(time.time()*1000),"elapsed_ms":int(fallback_elapsed)})+'\n')
             # #endregion
             return result
@@ -280,11 +297,13 @@ class ForcedAligner:
         segment_extract_elapsed = (time.time() - segment_extract_start) * 1000
         total_elapsed = (time.time() - align_start) * 1000
         # #region agent log
-        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+        with open(log_path, 'a') as f:
             f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"forced_alignment.py:extract_phoneme_segments:after_segment_extract","message":"Segments extracted from alignment","data":{"segments_count":len(segments)},"timestamp":int(time.time()*1000),"elapsed_ms":int(segment_extract_elapsed)})+'\n')
         # #endregion
         # #region agent log
-        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+        with open(log_path, 'a') as f:
             f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"forced_alignment.py:extract_phoneme_segments:end","message":"Forced alignment extraction completed","data":{"total_elapsed_ms":int(total_elapsed),"segments_count":len(segments)},"timestamp":int(time.time()*1000),"elapsed_ms":int(total_elapsed)})+'\n')
         # #endregion
         
@@ -316,7 +335,8 @@ class ForcedAligner:
         """
         try:
             # #region agent log
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+            with open(log_path, 'a') as f:
                 f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"forced_alignment.py:_ctc_alignment:entry","message":"CTC alignment started","data":{"labels_count":len(labels),"token_ids_count":len(token_ids),"labels_sample":labels[:10] if len(labels) > 10 else labels,"token_ids_sample":token_ids[:10] if len(token_ids) > 10 else token_ids},"timestamp":int(time.time()*1000)})+'\n')
             # #endregion
             
@@ -331,7 +351,8 @@ class ForcedAligner:
             # #region agent log
             unique_predicted = np.unique(best_path).tolist()
             predicted_counts = {int(k): int(v) for k, v in zip(*np.unique(best_path, return_counts=True))}
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+            with open(log_path, 'a') as f:
                 f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"B","location":"forced_alignment.py:_ctc_alignment:after_best_path","message":"Best path computed","data":{"num_frames":int(num_frames),"unique_predicted_count":len(unique_predicted),"unique_predicted":unique_predicted[:20],"predicted_counts_sample":dict(list(predicted_counts.items())[:10]),"expected_token_ids":token_ids},"timestamp":int(time.time()*1000)})+'\n')
             # #endregion
             
@@ -343,7 +364,8 @@ class ForcedAligner:
             expected_in_path = [tid for tid in token_ids if tid in best_path]
             missing_tokens = [tid for tid in token_ids if tid not in best_path]
             missing_labels = [labels[i] for i, tid in enumerate(token_ids) if tid not in best_path]
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+            with open(log_path, 'a') as f:
                 f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"C","location":"forced_alignment.py:_ctc_alignment:token_check","message":"Token presence check","data":{"expected_in_path_count":len(expected_in_path),"missing_tokens_count":len(missing_tokens),"missing_tokens":missing_tokens[:10],"missing_labels":missing_labels[:10]},"timestamp":int(time.time()*1000)})+'\n')
             # #endregion
             
@@ -407,7 +429,8 @@ class ForcedAligner:
                 # #endregion
             
             # #region agent log
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+            with open(log_path, 'a') as f:
                 f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"forced_alignment.py:_ctc_alignment:after_loop","message":"Alignment loop completed","data":{"segments_found":len(segments),"expected_count":len(labels),"target_idx_final":target_idx,"alignment_trace_sample":alignment_trace[-20:] if len(alignment_trace) > 20 else alignment_trace},"timestamp":int(time.time()*1000)})+'\n')
             # #endregion
             
@@ -444,7 +467,8 @@ class ForcedAligner:
                 # #region agent log
                 found_phonemes = [s.label for s in result_segments]
                 missing_phonemes = [l for l in labels if l not in found_phonemes]
-                with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                with open(log_path, 'a') as f:
                     f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"forced_alignment.py:_ctc_alignment:before_hybrid","message":"Not all phonemes found","data":{"found_count":len(result_segments),"expected_count":len(labels),"found_phonemes":found_phonemes[:20],"missing_phonemes":missing_phonemes[:20],"missing_count":len(missing_phonemes)},"timestamp":int(time.time()*1000)})+'\n')
                 # #endregion
                 print(f"Warning: CTC alignment found only {len(result_segments)}/{len(labels)} phonemes, using hybrid approach")

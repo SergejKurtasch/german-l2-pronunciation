@@ -42,6 +42,8 @@ pathlib2>=2.3.7; python_version < '3.4'
 #   pip install git+https://github.com/SergejKurtasch/german-phoneme-validator.git
 # Or if published to PyPI:
 #   german-phoneme-validator>=1.0.0
--e /Volumes/SSanDisk/german-phoneme-validator  # Local development installation
+# Local development installation - use relative path or install from parent directory
+# Example: pip install -e ../german-phoneme-validator
+# Or install from GitHub: pip install git+https://github.com/SergejKurtasch/german-phoneme-validator.git
 
 

@@ -1542,52 +1542,61 @@ def create_interface():
         def load_example_text_and_audio():
             """Load example text and audio file."""
             text = "Im Grundlagenstreit der Mathematik entspräche der nominalistischen Position die formalistische Richtung."
-            audio_path = "/Volumes/SSanDisk/audio_data/data_wav/TV-2021.02-Neutral/4aeeae88-0777-2c8c-5c93-2e844a462e49---7c5cf6a7351fb3ca39004d5e49566c09.wav"
+            # Use relative path from project root
+            audio_path = PROJECT_ROOT / "data" / "audio" / "4aeeae88-0777-2c8c-5c93-2e844a462e49---7c5cf6a7351fb3ca39004d5e49566c09.wav"
             
-            # Load audio file
-            try:
-                audio_array, sample_rate = librosa.load(audio_path, sr=None, mono=True)
-                # Gradio expects (sample_rate, audio_array) tuple
-                audio_tuple = (sample_rate, audio_array)
-                return text, audio_tuple
-            except Exception as e:
-                print(f"Error loading audio file: {e}")
-                # Return text only if audio fails to load
-                return text, None
+            # Load audio file if it exists
+            if audio_path.exists():
+                try:
+                    audio_array, sample_rate = librosa.load(str(audio_path), sr=None, mono=True)
+                    # Gradio expects (sample_rate, audio_array) tuple
+                    audio_tuple = (sample_rate, audio_array)
+                    return text, audio_tuple
+                except Exception as e:
+                    print(f"Error loading audio file: {e}")
+            
+            # Return text only if audio is not available
+            return text, None
         
         # Function for second example
         def load_example_text_and_audio_2():
             """Load example text and audio file (example 2)."""
             text = """Aber für unsere Entwicklungspolitik, für unsere Außenpolitik, für unsere Kulturpolitik durch die Goethe-Institute ist das Thema „Teilhabe von Frauen" ein zentrales Thema."""
-            audio_path = "/Volumes/SSanDisk/audio_data/data_wav/TV-2021.02-Neutral/4aeeae88-0777-2c8c-5c93-2e844a462e49---0a05b797c25f88e74d0d8d69a4705187.wav"
+            # Use relative path from project root
+            audio_path = PROJECT_ROOT / "data" / "audio" / "4aeeae88-0777-2c8c-5c93-2e844a462e49---0a05b797c25f88e74d0d8d69a4705187.wav"
             
-            # Load audio file
-            try:
-                audio_array, sample_rate = librosa.load(audio_path, sr=None, mono=True)
-                # Gradio expects (sample_rate, audio_array) tuple
-                audio_tuple = (sample_rate, audio_array)
-                return text, audio_tuple
-            except Exception as e:
-                print(f"Error loading audio file: {e}")
-                # Return text only if audio fails to load
-                return text, None
+            # Load audio file if it exists
+            if audio_path.exists():
+                try:
+                    audio_array, sample_rate = librosa.load(str(audio_path), sr=None, mono=True)
+                    # Gradio expects (sample_rate, audio_array) tuple
+                    audio_tuple = (sample_rate, audio_array)
+                    return text, audio_tuple
+                except Exception as e:
+                    print(f"Error loading audio file: {e}")
+            
+            # Return text only if audio is not available
+            return text, None
         
         # Function for third example
         def load_example_text_and_audio_3():
             """Load example text and audio file (example 3)."""
             text = "Plötzlich wurde dem Privatdetektiv klar, worum es dem Dieb eigentlich ging."
-            audio_path = "/Volumes/SSanDisk/SpeechRec-German/wav2vec2-finetune/artifacts/processed_audio/TV-2021.02-Neutral/4aeeae88-0777-2c8c-5c93-2e844a462e49---8da112ef2540faff1fe1dfdf3f433e54.wav"
+            # Use relative path from project root
+            audio_path = PROJECT_ROOT / "data" / "audio" / "4aeeae88-0777-2c8c-5c93-2e844a462e49---8da112ef2540faff1fe1dfdf3f433e54.wav"
             
-            # Load audio file
-            try:
-                audio_array, sample_rate = librosa.load(audio_path, sr=None, mono=True)
-                # Gradio expects (sample_rate, audio_array) tuple
-                audio_tuple = (sample_rate, audio_array)
-                return text, audio_tuple
-            except Exception as e:
-                print(f"Error loading audio file: {e}")
-                # Return text only if audio fails to load
-                return text, None
+            # Load audio file if it exists
+            if audio_path.exists():
+                try:
+                    audio_array, sample_rate = librosa.load(str(audio_path), sr=None, mono=True)
+                    # Gradio expects (sample_rate, audio_array) tuple
+                    audio_tuple = (sample_rate, audio_array)
+                    return text, audio_tuple
+                except Exception as e:
+                    print(f"Error loading audio file: {e}")
+            
+            # Return text only if audio is not available
+            return text, None
         
         # Second row of examples with custom buttons
         with gr.Row(equal_height=True):

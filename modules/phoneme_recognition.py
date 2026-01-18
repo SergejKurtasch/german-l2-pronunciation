@@ -260,7 +260,8 @@ class PhonemeRecognizer:
         audio, sr = librosa.load(audio_path, sr=sample_rate, mono=True)
         audio_load_elapsed = (time.time() - audio_load_start) * 1000
         # #region agent log
-        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+        with open(log_path, 'a') as f:
             f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"phoneme_recognition.py:recognize_phonemes:after_audio_load","message":"Audio loaded for recognition","data":{"audio_length_samples":len(audio),"sample_rate":sr},"timestamp":int(time.time()*1000),"elapsed_ms":int(audio_load_elapsed)})+'\n')
         # #endregion
         
@@ -282,7 +283,8 @@ class PhonemeRecognizer:
             ).input_values.to(self.device)
         process_elapsed = (time.time() - process_start) * 1000
         # #region agent log
-        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+        with open(log_path, 'a') as f:
             f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"phoneme_recognition.py:recognize_phonemes:after_processing","message":"Audio processed through feature extractor","data":{"input_shape":list(input_values.shape)},"timestamp":int(time.time()*1000),"elapsed_ms":int(process_elapsed)})+'\n')
         # #endregion
         
@@ -292,7 +294,8 @@ class PhonemeRecognizer:
             logits = self.model(input_values).logits
         inference_elapsed = (time.time() - inference_start) * 1000
         # #region agent log
-        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+        with open(log_path, 'a') as f:
             f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"phoneme_recognition.py:recognize_phonemes:after_inference","message":"Model inference completed","data":{"logits_shape":list(logits.shape)},"timestamp":int(time.time()*1000),"elapsed_ms":int(inference_elapsed)})+'\n')
         # #endregion
         
@@ -301,13 +304,15 @@ class PhonemeRecognizer:
         emissions = torch.log_softmax(logits, dim=-1)
         emissions_elapsed = (time.time() - emissions_start) * 1000
         # #region agent log
-        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+        with open(log_path, 'a') as f:
             f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"phoneme_recognition.py:recognize_phonemes:after_emissions","message":"Emissions computed","data":{},"timestamp":int(time.time()*1000),"elapsed_ms":int(emissions_elapsed)})+'\n')
         # #endregion
         
         total_elapsed = (time.time() - rec_start) * 1000
         # #region agent log
-        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+        with open(log_path, 'a') as f:
             f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"phoneme_recognition.py:recognize_phonemes:end","message":"Phoneme recognition completed","data":{"total_elapsed_ms":int(total_elapsed)},"timestamp":int(time.time()*1000),"elapsed_ms":int(total_elapsed)})+'\n')
         # #endregion
         
@@ -407,7 +412,8 @@ class PhonemeRecognizer:
             
             # #region agent log
             import json, time
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
+            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+            with open(log_path, 'a') as debug_f:
                 debug_f.write(json.dumps({"location":"phoneme_recognition.py:decode_phonemes","message":"Tokens before join","data":{"tokens":tokens,"has_t_h":any('tʰ' in t or 't' in t and 'ʰ' in tokens for t in tokens)},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"C"})+'\n')
             # #endregion
             
@@ -415,7 +421,8 @@ class PhonemeRecognizer:
             transcription = ' '.join(tokens)
             
             # #region agent log
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
+            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+            with open(log_path, 'a') as debug_f:
                 debug_f.write(json.dumps({"location":"phoneme_recognition.py:decode_phonemes","message":"Transcription after join","data":{"transcription":transcription,"has_t_h":'tʰ' in transcription or 't ʰ' in transcription},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"C"})+'\n')
             # #endregion
         

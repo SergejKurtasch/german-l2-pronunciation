@@ -234,14 +234,16 @@ def get_speech_recognizer(
     if engine == "macos":
         # #region agent log
         import json, time
-        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+        with open(log_path, 'a') as f:
             f.write(json.dumps({"sessionId":"debug-session","runId":"asr-init","hypothesisId":"C","location":"modules/speech_to_text.py:get_speech_recognizer:macos_requested","message":"macOS Speech requested","data":{"has_macos_speech":HAS_MACOS_SPEECH},"timestamp":int(time.time()*1000)})+'\n')
         # #endregion
         
         # Check if macOS Speech is available
         if not HAS_MACOS_SPEECH:
             # #region agent log
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+            with open(log_path, 'a') as f:
                 f.write(json.dumps({"sessionId":"debug-session","runId":"asr-init","hypothesisId":"C","location":"modules/speech_to_text.py:get_speech_recognizer:macos_not_available","message":"macOS Speech not available, falling back to Whisper","data":{},"timestamp":int(time.time()*1000)})+'\n')
             # #endregion
             print("Warning: macOS Speech framework is not available (not macOS or pyobjc-framework-Speech not installed)")
@@ -261,7 +263,8 @@ def get_speech_recognizer(
                     language = f"{language}-{language.upper()}"
                 
                 # #region agent log
-                with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                with open(log_path, 'a') as f:
                     f.write(json.dumps({"sessionId":"debug-session","runId":"asr-init","hypothesisId":"C","location":"modules/speech_to_text.py:get_speech_recognizer:macos_init_start","message":"Initializing macOS Speech","data":{"language":language},"timestamp":int(time.time()*1000)})+'\n')
                 # #endregion
                 
@@ -277,7 +280,8 @@ def get_speech_recognizer(
                             # #region agent log
                             import json, time
                             transcribe_start = time.time()
-                            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                            with open(log_path, 'a') as f:
                                 f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"D","location":"modules/speech_to_text.py:MacOSRecognizerWrapper:transcribe:start","message":"macOS Speech transcribe called","data":{"audio_path":str(audio_path),"language":language},"timestamp":int(time.time()*1000)})+'\n')
                             # #endregion
                             
@@ -291,7 +295,8 @@ def get_speech_recognizer(
                                 result = self.recognizer.transcribe(audio_path, language, task, verbose)
                                 transcribe_elapsed = (time.time() - transcribe_start) * 1000
                                 # #region agent log
-                                with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                                log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                                with open(log_path, 'a') as f:
                                     f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"D","location":"modules/speech_to_text.py:MacOSRecognizerWrapper:transcribe:completed","message":"macOS Speech transcribe completed","data":{"result_length":len(result) if result else 0,"result_preview":result[:50] if result else None},"timestamp":int(time.time()*1000),"elapsed_ms":int(transcribe_elapsed)})+'\n')
                                 # #endregion
                                 return result
@@ -300,14 +305,16 @@ def get_speech_recognizer(
                                 if "timeout" in str(e).lower():
                                     # #region agent log
                                     transcribe_elapsed = (time.time() - transcribe_start) * 1000
-                                    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                                    log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                                    with open(log_path, 'a') as f:
                                         f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"D","location":"modules/speech_to_text.py:MacOSRecognizerWrapper:transcribe:timeout_fallback","message":"macOS Speech timeout, falling back to Whisper","data":{"error":str(e)},"timestamp":int(time.time()*1000),"elapsed_ms":int(transcribe_elapsed)})+'\n')
                                     # #endregion
                                     print(f"Warning: macOS Speech timed out, falling back to Whisper...")
                                     # Fallback to Whisper
                                     if self._whisper_fallback is None:
                                         # #region agent log
-                                        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                                        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                                        with open(log_path, 'a') as f:
                                             f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"D","location":"modules/speech_to_text.py:MacOSRecognizerWrapper:transcribe:whisper_init_start","message":"Initializing Whisper fallback","data":{"has_whisper":HAS_WHISPER},"timestamp":int(time.time()*1000)})+'\n')
                                         # #endregion
                                         # Initialize Whisper fallback
@@ -316,18 +323,21 @@ def get_speech_recognizer(
                                             model_size = getattr(config, 'ASR_MODEL', 'medium')
                                             device = getattr(config, 'ASR_DEVICE', None)
                                             # #region agent log
-                                            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                                            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                                            with open(log_path, 'a') as f:
                                                 f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"D","location":"modules/speech_to_text.py:MacOSRecognizerWrapper:transcribe:whisper_init_params","message":"Whisper init parameters","data":{"model_size":model_size,"device":device},"timestamp":int(time.time()*1000)})+'\n')
                                             # #endregion
                                             try:
                                                 self._whisper_fallback = SpeechToTextRecognizer(model_size=model_size, device=device)
                                                 # #region agent log
-                                                with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                                                log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                                                with open(log_path, 'a') as f:
                                                     f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"D","location":"modules/speech_to_text.py:MacOSRecognizerWrapper:transcribe:whisper_init_completed","message":"Whisper fallback initialized","data":{},"timestamp":int(time.time()*1000)})+'\n')
                                                 # #endregion
                                             except Exception as init_error:
                                                 # #region agent log
-                                                with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                                                log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                                                with open(log_path, 'a') as f:
                                                     f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"D","location":"modules/speech_to_text.py:MacOSRecognizerWrapper:transcribe:whisper_init_error","message":"Whisper init error","data":{"error":str(init_error),"error_type":type(init_error).__name__},"timestamp":int(time.time()*1000)})+'\n')
                                                 # #endregion
                                                 raise RuntimeError(f"macOS Speech timed out and Whisper initialization failed: {init_error}")
@@ -349,7 +359,8 @@ def get_speech_recognizer(
                                     else:
                                         whisper_language = 'de'
                                     
-                                    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                                    log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                                    with open(log_path, 'a') as f:
                                         f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"D","location":"modules/speech_to_text.py:MacOSRecognizerWrapper:transcribe:whisper_transcribe_start","message":"Starting Whisper transcription","data":{"audio_path":str(audio_path),"original_language":language,"whisper_language":whisper_language},"timestamp":int(time.time()*1000)})+'\n')
                                     # #endregion
                                     
@@ -359,7 +370,8 @@ def get_speech_recognizer(
                                         whisper_transcribe_elapsed = (time.time() - whisper_transcribe_start) * 1000
                                         transcribe_elapsed = (time.time() - transcribe_start) * 1000
                                         # #region agent log
-                                        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                                        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                                        with open(log_path, 'a') as f:
                                             f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"D","location":"modules/speech_to_text.py:MacOSRecognizerWrapper:transcribe:whisper_fallback_completed","message":"Whisper fallback completed","data":{"result_length":len(whisper_result) if whisper_result else 0,"result_preview":whisper_result[:100] if whisper_result else None,"whisper_elapsed_ms":int(whisper_transcribe_elapsed)},"timestamp":int(time.time()*1000),"elapsed_ms":int(transcribe_elapsed)})+'\n')
                                         # #endregion
                                         return whisper_result
@@ -367,7 +379,8 @@ def get_speech_recognizer(
                                         whisper_transcribe_elapsed = (time.time() - whisper_transcribe_start) * 1000
                                         transcribe_elapsed = (time.time() - transcribe_start) * 1000
                                         # #region agent log
-                                        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                                        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                                        with open(log_path, 'a') as f:
                                             f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"D","location":"modules/speech_to_text.py:MacOSRecognizerWrapper:transcribe:whisper_transcribe_error","message":"Whisper transcription error","data":{"error":str(whisper_error),"error_type":type(whisper_error).__name__,"whisper_elapsed_ms":int(whisper_transcribe_elapsed)},"timestamp":int(time.time()*1000),"elapsed_ms":int(transcribe_elapsed)})+'\n')
                                         # #endregion
                                         raise RuntimeError(f"macOS Speech timed out and Whisper transcription failed: {whisper_error}")
@@ -375,26 +388,30 @@ def get_speech_recognizer(
                                     # Other runtime error - re-raise
                                     transcribe_elapsed = (time.time() - transcribe_start) * 1000
                                     # #region agent log
-                                    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                                    log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                                    with open(log_path, 'a') as f:
                                         f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"D","location":"modules/speech_to_text.py:MacOSRecognizerWrapper:transcribe:exception","message":"macOS Speech transcribe exception","data":{"error":str(e),"error_type":type(e).__name__},"timestamp":int(time.time()*1000),"elapsed_ms":int(transcribe_elapsed)})+'\n')
                                     # #endregion
                                     raise
                             except Exception as e:
                                 transcribe_elapsed = (time.time() - transcribe_start) * 1000
                                 # #region agent log
-                                with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                                log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                                with open(log_path, 'a') as f:
                                     f.write(json.dumps({"sessionId":"debug-session","runId":"asr-transcribe","hypothesisId":"D","location":"modules/speech_to_text.py:MacOSRecognizerWrapper:transcribe:exception","message":"macOS Speech transcribe exception","data":{"error":str(e),"error_type":type(e).__name__},"timestamp":int(time.time()*1000),"elapsed_ms":int(transcribe_elapsed)})+'\n')
                                 # #endregion
                                 raise
                     
                     # #region agent log
-                    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                    log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                    with open(log_path, 'a') as f:
                         f.write(json.dumps({"sessionId":"debug-session","runId":"asr-init","hypothesisId":"C","location":"modules/speech_to_text.py:get_speech_recognizer:macos_success","message":"macOS Speech initialized successfully","data":{},"timestamp":int(time.time()*1000)})+'\n')
                     # #endregion
                     return MacOSRecognizerWrapper(macos_recognizer)
                 else:
                     # #region agent log
-                    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                    log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                    with open(log_path, 'a') as f:
                         f.write(json.dumps({"sessionId":"debug-session","runId":"asr-init","hypothesisId":"C","location":"modules/speech_to_text.py:get_speech_recognizer:macos_init_failed","message":"macOS Speech initialization returned None, falling back to Whisper","data":{},"timestamp":int(time.time()*1000)})+'\n')
                     # #endregion
                     print("Warning: Failed to initialize macOS speech recognizer")
@@ -402,7 +419,8 @@ def get_speech_recognizer(
                     engine = 'whisper'  # Fallback to Whisper
             except Exception as e:
                 # #region agent log
-                with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+                log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                with open(log_path, 'a') as f:
                     f.write(json.dumps({"sessionId":"debug-session","runId":"asr-init","hypothesisId":"C","location":"modules/speech_to_text.py:get_speech_recognizer:macos_exception","message":"macOS Speech initialization exception, falling back to Whisper","data":{"error":str(e),"error_type":type(e).__name__},"timestamp":int(time.time()*1000)})+'\n')
                 # #endregion
                 print(f"Warning: Failed to initialize macOS speech recognizer: {e}")
@@ -413,13 +431,15 @@ def get_speech_recognizer(
     if engine == "whisper":
         # #region agent log
         import json, time
-        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+        with open(log_path, 'a') as f:
             f.write(json.dumps({"sessionId":"debug-session","runId":"asr-init","hypothesisId":"C","location":"modules/speech_to_text.py:get_speech_recognizer:whisper_selected","message":"Using Whisper engine","data":{"has_whisper":HAS_WHISPER,"model_size":model_size},"timestamp":int(time.time()*1000)})+'\n')
         # #endregion
         
         if not HAS_WHISPER:
             # #region agent log
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+            with open(log_path, 'a') as f:
                 f.write(json.dumps({"sessionId":"debug-session","runId":"asr-init","hypothesisId":"C","location":"modules/speech_to_text.py:get_speech_recognizer:whisper_not_available","message":"Whisper not available","data":{},"timestamp":int(time.time()*1000)})+'\n')
             # #endregion
             return None

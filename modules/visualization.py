@@ -612,7 +612,8 @@ def create_text_comparison_view(
     """
     # #region agent log
     import json, time
-    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+    log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+    with open(log_path, 'a') as f:
         f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"visualization.py:create_text_comparison_view_entry","message":"create_text_comparison_view called","data":{"expected_text":expected_text,"recognized_text":recognized_text,"wer_result":wer_result,"expected_is_none":expected_text is None,"recognized_is_none":recognized_text is None},"timestamp":int(time.time()*1000)})+'\n')
     # #endregion
     
@@ -653,7 +654,8 @@ def create_text_comparison_view(
     
     # #region agent log
     import json, time
-    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+    log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+    with open(log_path, 'a') as f:
         f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"visualization.py:create_text_comparison_view_exit","message":"create_text_comparison_view completed","data":{"html_length":len(html)},"timestamp":int(time.time()*1000)})+'\n')
     # #endregion
     
@@ -927,7 +929,8 @@ def create_simple_phoneme_comparison(
     """
     # #region agent log
     import json
-    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+    log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+    with open(log_path, 'a') as f:
         f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"visualization.py:416","message":"create_simple_phoneme_comparison entry","data":{"expected_phonemes":expected_phonemes,"recognized_phonemes":recognized_phonemes,"expected_count":len(expected_phonemes),"recognized_count":len(recognized_phonemes)},"timestamp":int(__import__('time').time()*1000)})+'\n')
     # #endregion
     
@@ -939,7 +942,8 @@ def create_simple_phoneme_comparison(
     recognized_str = ' '.join(format_phoneme(ph) for ph in recognized_phonemes)
     
     # #region agent log
-    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+    log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+    with open(log_path, 'a') as f:
         f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"visualization.py:420","message":"after join operations","data":{"expected_str":expected_str,"recognized_str":recognized_str,"recognized_has_dash":'-' in recognized_str},"timestamp":int(__import__('time').time()*1000)})+'\n')
     # #endregion
     
@@ -952,7 +956,8 @@ def create_simple_phoneme_comparison(
     # #region agent log
     import re
     dash_positions = [m.start() for m in re.finditer(r'-', html)]
-    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+    log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+    with open(log_path, 'a') as f:
         f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"G","location":"visualization.py:430","message":"before return html","data":{"html_full":html,"html_has_dash":'-' in html,"dash_count":html.count('-'),"dash_positions":dash_positions[:20],"recognized_str_in_html":recognized_str in html},"timestamp":int(__import__('time').time()*1000)})+'\n')
     # #endregion
     
@@ -1357,7 +1362,7 @@ def create_validation_comparison(
     
     Args:
         text: Original sentence text
-        before_validation_html: HTML with colored text before validation (after Hagen-Faes model)
+        before_validation_html: HTML with colored text before validation (after Hugging Face model)
         after_validation_html: HTML with colored text after validation (if enabled)
         enable_validation: Whether validation was enabled
         
@@ -1386,9 +1391,9 @@ def create_validation_comparison(
     
     html = "<div style='padding: 10px; background: #f8f9fa; border-radius: 5px;'>"
     
-    # Before validation version (after Hagen-Faes model)
+    # Before validation version (after Hugging Face model)
     html += "<div style='margin-bottom: 10px; padding: 7px; background: #e8f4f8; border-left: 4px solid #3498db; border-radius: 4px;'>"
-    html += "<p style='margin: 0 0 5px 0; font-weight: bold; color: #2c3e50; font-size: 11px; text-align: right;'>Version 1: After Hagen-Faes Model (Before Validation)</p>"
+    html += "<p style='margin: 0 0 5px 0; font-weight: bold; color: #2c3e50; font-size: 11px; text-align: right;'>Version 1: After Hugging Face Model (Before Validation)</p>"
     html += before_html_with_bold
     html += "</div>"
     

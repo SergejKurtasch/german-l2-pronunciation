@@ -144,7 +144,8 @@ class DSLG2P:
         
         # #region agent log
         import json, time
-        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
+        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+        with open(log_path, 'a') as debug_f:
             debug_f.write(json.dumps({"location":"g2p_module.py:_normalize_ipa_transcription","message":"Input transcription","data":{"transcription":transcription,"has_t_h":'tʰ' in transcription or 't ʰ' in transcription},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"A"})+'\n')
         # #endregion
         
@@ -164,7 +165,8 @@ class DSLG2P:
         cleaned = cleaned.replace('|', '').replace('‖', '')
         
         # #region agent log
-        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
+        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+        with open(log_path, 'a') as debug_f:
             debug_f.write(json.dumps({"location":"g2p_module.py:_normalize_ipa_transcription","message":"After cleaning","data":{"cleaned":cleaned,"has_t_h":'tʰ' in cleaned or 't ʰ' in cleaned},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"A"})+'\n')
         # #endregion
         
@@ -227,7 +229,8 @@ class DSLG2P:
                     i += 1
         
         # #region agent log
-        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
+        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+        with open(log_path, 'a') as debug_f:
             debug_f.write(json.dumps({"location":"g2p_module.py:_normalize_ipa_transcription","message":"Phonemes before normalization","data":{"phonemes":phonemes,"has_t_h":any('tʰ' in ph or 't ʰ' in ph for ph in phonemes)},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"A"})+'\n')
         # #endregion
         
@@ -238,7 +241,8 @@ class DSLG2P:
                 # Normalize each phoneme (source='dictionary' for DSL)
                 normalized_phonemes = normalizer.normalize_phoneme_list(phonemes, source='dictionary')
                 # #region agent log
-                with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
+                log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                with open(log_path, 'a') as debug_f:
                     debug_f.write(json.dumps({"location":"g2p_module.py:_normalize_ipa_transcription","message":"Phonemes after normalization","data":{"normalized_phonemes":normalized_phonemes,"has_t_h":any('tʰ' in ph or 't ʰ' in ph for ph in normalized_phonemes)},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"B"})+'\n')
                 # #endregion
                 return normalized_phonemes
@@ -299,7 +303,8 @@ class DSLG2P:
                                 # (it will use MFA or eSpeak instead)
             
             load_time = time.time() - start_time
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
+            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+            with open(log_path, 'a') as debug_f:
                 debug_f.write(json.dumps({"location":"g2p_module.py:dsl_load","message":"DSL lexicon loaded","data":{"count":count,"sample_words":list(self.lexicon.keys())[:5]},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"C"})+'\n')
             
             print(f"Loaded {count} words from DSL lexicon in {load_time:.2f} seconds.")
@@ -308,7 +313,8 @@ class DSLG2P:
             self._save_cache()
         except Exception as e:
             import json
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
+            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+            with open(log_path, 'a') as debug_f:
                 debug_f.write(json.dumps({"location":"g2p_module.py:dsl_load_error","message":"DSL lexicon load error","data":{"error":str(e)},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"C"})+'\n')
             print(f"Error loading DSL lexicon: {e}")
 
@@ -475,7 +481,8 @@ class LexiconG2P:
                             count += 1
             load_time = time.time() - start_time
             # #region agent log
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
+            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+            with open(log_path, 'a') as debug_f:
                 debug_f.write(json.dumps({"location":"g2p_module.py:load","message":"Lexicon loaded","data":{"count":count,"sample_words":list(self.lexicon.keys())[:5]},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"C"})+'\n')
             # #endregion
             print(f"Loaded {count} words from lexicon in {load_time:.2f} seconds.")
@@ -484,7 +491,8 @@ class LexiconG2P:
             self._save_cache()
         except Exception as e:
             # #region agent log
-            with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
+            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+            with open(log_path, 'a') as debug_f:
                 debug_f.write(json.dumps({"location":"g2p_module.py:load_error","message":"Lexicon load error","data":{"error":str(e)},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"C"})+'\n')
             # #endregion
             print(f"Error loading lexicon: {e}")
@@ -504,7 +512,8 @@ class LexiconG2P:
         result = self.lexicon.get(clean_word)
         # #region agent log
         import json, time
-        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
+        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+        with open(log_path, 'a') as debug_f:
             debug_f.write(json.dumps({"location":"g2p_module.py:lookup","message":"Lexicon lookup","data":{"word":word,"clean_word":clean_word,"found":result is not None,"phonemes":result},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"A"})+'\n')
         # #endregion
         return result
@@ -541,7 +550,8 @@ class G2PConverter:
         # #region agent log
         import json
         dict_load_start = time.time()
-        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+        with open(log_path, 'a') as f:
             f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"g2p_module.py:_load_dictionaries:start","message":"Starting dictionary loading","data":{},"timestamp":int(time.time()*1000),"elapsed_ms":0})+'\n')
         # #endregion
         
@@ -590,7 +600,8 @@ class G2PConverter:
         
         dict_load_elapsed = (time.time() - dict_load_start) * 1000
         # #region agent log
-        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+        with open(log_path, 'a') as f:
             f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"g2p_module.py:_load_dictionaries:end","message":"Dictionary loading completed","data":{"dsl_time_ms":dsl_time[0],"mfa_time_ms":mfa_time[0],"total_time_ms":dict_load_elapsed},"timestamp":int(time.time()*1000),"elapsed_ms":int(dict_load_elapsed)})+'\n')
         # #endregion
         
@@ -777,7 +788,8 @@ class G2PConverter:
         
         # #region agent log
         import json, time
-        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
+        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+        with open(log_path, 'a') as debug_f:
             debug_f.write(json.dumps({"location":"g2p_module.py:tokens","message":"Tokens identified","data":{"tokens":tokens},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"D"})+'\n')
         # #endregion
 
@@ -823,13 +835,15 @@ class G2PConverter:
                                 phonemes = normalized_dsl_phonemes
                                 source = 'dsl'
                                 # #region agent log
-                                with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
+                                log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                                with open(log_path, 'a') as debug_f:
                                     debug_f.write(json.dumps({"location":"g2p_module.py:process_token","message":"Using DSL lexicon (normalized)","data":{"token":token,"raw_phonemes":dsl_phonemes,"normalized_phonemes":phonemes},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"B"})+'\n')
                                 # #endregion
                             else:
                                 # Normalization resulted in empty/invalid phonemes - skip DSL
                                 # #region agent log
-                                with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
+                                log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                                with open(log_path, 'a') as debug_f:
                                     debug_f.write(json.dumps({"location":"g2p_module.py:process_token","message":"DSL phonemes invalid after normalization, skipping DSL","data":{"token":token,"raw_phonemes":dsl_phonemes,"normalized_phonemes":normalized_dsl_phonemes},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"B"})+'\n')
                                 # #endregion
                                 phonemes = None  # Will try next source
@@ -843,7 +857,8 @@ class G2PConverter:
                         phonemes = dsl_phonemes
                         source = 'dsl'
                         # #region agent log
-                        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
+                        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                        with open(log_path, 'a') as debug_f:
                             debug_f.write(json.dumps({"location":"g2p_module.py:process_token","message":"Using DSL lexicon (no normalizer)","data":{"token":token,"phonemes":phonemes},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"B"})+'\n')
                         # #endregion
             
@@ -854,14 +869,16 @@ class G2PConverter:
                     phonemes = mfa_phonemes
                     source = 'mfa'
                     # #region agent log
-                    with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
+                    log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                    with open(log_path, 'a') as debug_f:
                         debug_f.write(json.dumps({"location":"g2p_module.py:process_token","message":"Using MFA lexicon","data":{"token":token,"phonemes":phonemes},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"B"})+'\n')
                     # #endregion
             
             # Priority 3: Fallback to eSpeak NG (last resort)
             if not phonemes and self.backend:
                 # #region agent log
-                with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as debug_f:
+                log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+                with open(log_path, 'a') as debug_f:
                     debug_f.write(json.dumps({"location":"g2p_module.py:process_token","message":"Using espeak fallback","data":{"token":token},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"B"})+'\n')
                 # #endregion
                 try:
@@ -930,7 +947,8 @@ class G2PConverter:
         
         token_processing_elapsed = (time.time() - token_processing_start) * 1000
         # #region agent log
-        with open('/Volumes/SSanDisk/SpeechRec-German-diagnostic/.cursor/debug.log', 'a') as f:
+        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
+        with open(log_path, 'a') as f:
             f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"g2p_module.py:get_expected_phonemes:token_processing","message":"Token processing completed","data":{"tokens_count":len(tokens),"phonemes_count":len(all_expected_phonemes)},"timestamp":int(time.time()*1000),"elapsed_ms":int(token_processing_elapsed)})+'\n')
         # #endregion
         
