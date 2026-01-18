@@ -35,4 +35,13 @@ gradio>=4.0.0
 # Utilities
 pathlib2>=2.3.7; python_version < '3.4'
 
+# Phoneme Validation (Second Stage Validation)
+# Install from local directory (development):
+#   pip install -e /path/to/german-phoneme-validator
+# Or from GitHub:
+#   pip install git+https://github.com/SergejKurtasch/german-phoneme-validator.git
+# Or if published to PyPI:
+#   german-phoneme-validator>=1.0.0
+-e /Volumes/SSanDisk/german-phoneme-validator  # Local development installation
+
 

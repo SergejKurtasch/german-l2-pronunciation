@@ -5,27 +5,18 @@ Optional phoneme validator module for additional validation through trained mode
 from typing import Dict, Optional
 import numpy as np
 from pathlib import Path
-import sys
 
-# Try to import validator from german-phoneme-validator project (optional)
+# Try to import validator from installed german-phoneme-validator package (optional)
 try:
-    # Add german-phoneme-validator project to path if available
-    validator_project = Path(__file__).parent.parent.parent / "german-phoneme-validator"
-    if validator_project.exists():
-        sys.path.insert(0, str(validator_project))
-        from core.validator import PhonemeValidator, get_validator
-        HAS_VALIDATOR = True
-        print(f"Found german-phoneme-validator at: {validator_project}")
-    else:
-        HAS_VALIDATOR = False
-        PhonemeValidator = None
-        get_validator = None
-        print(f"german-phoneme-validator not found at: {validator_project}")
+    from german_phoneme_validator import PhonemeValidator, get_validator
+    HAS_VALIDATOR = True
+    print("Found german-phoneme-validator package (installed via pip/conda)")
 except ImportError as e:
     HAS_VALIDATOR = False
     PhonemeValidator = None
     get_validator = None
-    print(f"Failed to import german-phoneme-validator: {e}")
+    print(f"german-phoneme-validator package not found. Install it with: pip install -e /path/to/german-phoneme-validator")
+    print(f"Import error: {e}")
 
 
 class OptionalPhonemeValidator:
@@ -36,12 +27,10 @@ class OptionalPhonemeValidator:
         self.validator = None
         if HAS_VALIDATOR:
             try:
-                # Initialize validator with artifacts directory
-                validator_project = Path(__file__).parent.parent.parent / "german-phoneme-validator"
-                artifacts_dir = validator_project / "artifacts"
-                self.validator = get_validator(artifacts_dir=artifacts_dir)
+                # Initialize validator (artifacts_dir will be auto-detected from installed package)
+                self.validator = get_validator()
                 available_pairs = self.validator.get_available_pairs()
-                print(f"Optional phoneme validator loaded from german-phoneme-validator")
+                print(f"Optional phoneme validator loaded from german-phoneme-validator package")
                 print(f"Available phoneme pairs: {len(available_pairs)} pairs")
                 if available_pairs:
                     print(f"Sample pairs: {', '.join(available_pairs[:5])}")
@@ -60,8 +49,8 @@ class OptionalPhonemeValidator:
         Removes vot_category (categorical string) from features to prevent float conversion error.
         """
         try:
-            # Import the feature extraction module
-            from core import feature_extraction
+            # Import the feature extraction module from installed package
+            from german_phoneme_validator.core import feature_extraction
             
             # Save original function
             original_extract_vot = feature_extraction.extract_vot
