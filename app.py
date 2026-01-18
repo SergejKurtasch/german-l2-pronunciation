@@ -45,407 +45,18 @@ from modules.phoneme_validator import get_optional_validator
 from modules.speech_to_text import get_speech_recognizer
 from modules.metrics import calculate_wer, calculate_per
 from modules.mfa_alignment import get_mfa_aligner
+from modules.utils import collapse_consecutive_duplicates
+from modules.chat_utils import normalize_chat_history, add_to_chat_history
+from modules.component_manager import (
+    initialize_components, load_models_in_background,
+    initialize_asr_only, load_dictionaries_in_background,
+    load_phoneme_model_in_background, load_mfa_in_background
+)
+import modules.component_manager as component_manager
+from modules.phoneme_validation import validate_single_phoneme
+from modules.ui import GRADIO_CUSTOM_CSS
 
 
-def validate_single_phoneme(task_data):
-    """
-    Wrapper function for parallel phoneme validation.
-    Uses validate_phoneme() with full audio waveform and position_ms (matching notebook implementation).
-    
-    Args:
-        task_data: Dictionary containing validation task parameters:
-            - audio: Full audio waveform
-            - phoneme: Recognized phoneme (what was detected)
-            - position_ms: Position in milliseconds where the phoneme is located
-            - expected_phoneme: Expected phoneme
-            - index: Index in aligned_pairs
-            - segment_index: Index in recognized_segments
-    
-    Returns:
-        Dictionary with validation result and metadata:
-            - index: Original index in aligned_pairs
-            - segment_index: Index in recognized_segments
-            - validation_result: Result from validate_phoneme
-    """
-    try:
-        validator = task_data['validator']
-        result = validator.validate_phoneme(
-            audio=task_data['audio'],
-            phoneme=task_data['phoneme'],
-            position_ms=task_data['position_ms'],
-            expected_phoneme=task_data['expected_phoneme']
-        )
-        return {
-            'index': task_data['index'],
-            'segment_index': task_data['segment_index'],
-            'validation_result': result,
-            'expected_phoneme': task_data['expected_phoneme'],
-            'recognized_phoneme': task_data['phoneme'],
-            'phoneme_pair': task_data.get('phoneme_pair', ''),
-            'error': None
-        }
-    except Exception as e:
-        import traceback
-        return {
-            'index': task_data['index'],
-            'segment_index': task_data.get('segment_index', -1),
-            'validation_result': {
-                'is_correct': None,
-                'confidence': 0.0,
-                'error': str(e)
-            },
-            'expected_phoneme': task_data.get('expected_phoneme', ''),
-            'recognized_phoneme': task_data.get('phoneme', ''),
-            'phoneme_pair': task_data.get('phoneme_pair', ''),
-            'error': str(e)
-        }
-
-
-# Global instances
-# vad_detector = None  # VAD disabled
-audio_normalizer = None
-phoneme_recognizer = None
-phoneme_filter = None
-mfa_aligner = None
-forced_aligner = None
-diagnostic_engine = None
-optional_validator = None
-asr_recognizer = None
-
-
-def initialize_asr_only():
-    """Initialize only ASR (Whisper or macOS Speech) for fast startup."""
-    global asr_recognizer    
-    if asr_recognizer is None and config.ASR_ENABLED:
-        try:
-            requested_engine = getattr(config, 'ASR_ENGINE', 'whisper')            
-            asr_recognizer = get_speech_recognizer(
-                model_size=getattr(config, 'ASR_MODEL', 'medium'),
-                device=getattr(config, 'ASR_DEVICE', None),
-                engine=requested_engine
-            )            
-            if asr_recognizer:
-                # Determine which engine was actually used (may differ from requested)
-                actual_engine = requested_engine
-                # Check if it's macOS wrapper by checking if it has recognizer attribute
-                if hasattr(asr_recognizer, 'recognizer'):
-                    actual_engine = "macos"
-                else:
-                    actual_engine = "whisper"                
-                if actual_engine == "macos":
-                    print(f"ASR recognizer (macOS Speech) initialized")
-                else:
-                    if requested_engine == "macos" and actual_engine == "whisper":
-                        print(f"ASR recognizer (Whisper {getattr(config, 'ASR_MODEL', 'medium')}) initialized (macOS Speech not available, using fallback)")
-                    else:
-                        print(f"ASR recognizer (Whisper {getattr(config, 'ASR_MODEL', 'medium')}) initialized")
-            else:
-                print(f"Warning: ASR recognizer not available (neither {requested_engine} nor Whisper available)")
-        except Exception as e:
-            print(f"Warning: ASR recognizer initialization failed: {e}")
-            asr_recognizer = None
-
-
-def load_dictionaries_in_background():
-    """Load G2P dictionaries in background after ASR is loaded."""
-    from modules.g2p_module import load_g2p_dictionaries
-    
-    print("Starting background dictionary loading...")
-    try:
-        load_g2p_dictionaries()
-        print("All dictionaries loaded successfully in background!")
-    except Exception as e:
-        print(f"Warning: Dictionary loading failed: {e}")
-
-
-def load_phoneme_model_in_background():
-    """Load Wav2Vec2 phoneme recognition model in background."""
-    global phoneme_recognizer
-    
-    print("Stage 3: Loading phoneme recognition model (Wav2Vec2)...")    
-    try:
-        if phoneme_recognizer is None:
-            model_load_start = time.time()
-            phoneme_recognizer = get_phoneme_recognizer(
-                model_name=config.MODEL_NAME,
-                device=config.MODEL_DEVICE if config.MODEL_DEVICE != "auto" else None
-            )
-            model_load_elapsed = (time.time() - model_load_start) * 1000
-            print(f"Phoneme recognition model loaded successfully! (took {model_load_elapsed/1000:.2f}s)")
-        else:
-            print("Phoneme recognition model already loaded.")
-    except Exception as e:
-        print(f"Warning: Phoneme model loading failed: {e}")
-
-
-def load_mfa_in_background():
-    """Load MFA aligner in background."""
-    global mfa_aligner
-    
-    print("Stage 4: Loading MFA aligner...")
-    try:
-        if mfa_aligner is None:
-            # Check if MFA is available in conda environment
-            import subprocess
-            import shutil
-            
-            conda_env = config.MFA_CONDA_ENV
-            mfa_available = False
-            
-            # Find conda executable
-            conda_cmd = shutil.which("conda")
-            if not conda_cmd:
-                # Try common conda locations
-                possible_paths = [
-                    Path.home() / "miniforge3" / "bin" / "conda",
-                    Path.home() / "miniforge3" / "condabin" / "conda",
-                    Path.home() / "miniforge" / "bin" / "conda",
-                    Path.home() / "anaconda3" / "bin" / "conda",
-                    Path.home() / "miniconda3" / "bin" / "conda",
-                    Path("/opt/homebrew/Caskroom/miniforge/base/bin/conda"),
-                    Path("/usr/local/Caskroom/miniforge/base/bin/conda"),
-                ]
-                for path in possible_paths:
-                    if path.exists():
-                        conda_cmd = str(path)
-                        break
-                
-                # Try CONDA_EXE environment variable
-                import os
-                conda_exe = os.environ.get("CONDA_EXE")
-                if conda_exe and Path(conda_exe).exists():
-                    conda_cmd = conda_exe
-            
-            # Try to find MFA binary directly in common conda locations
-            possible_mfa_paths = [
-                Path.home() / "miniforge3" / "envs" / conda_env / "bin" / "mfa",
-                Path.home() / "miniforge" / "envs" / conda_env / "bin" / "mfa",
-                Path.home() / "anaconda3" / "envs" / conda_env / "bin" / "mfa",
-                Path.home() / "miniconda3" / "envs" / conda_env / "bin" / "mfa",
-                Path("/opt/homebrew/Caskroom/miniforge/base/envs") / conda_env / "bin" / "mfa",
-                Path("/usr/local/Caskroom/miniforge/base/envs") / conda_env / "bin" / "mfa",
-            ]
-            
-            for mfa_path in possible_mfa_paths:
-                if mfa_path.exists():
-                    mfa_available = True
-                    break
-            
-            if not mfa_available and shutil.which("mfa"):
-                mfa_available = True
-            elif not mfa_available and conda_cmd:
-                # Try using conda to check
-                try:
-                    result = subprocess.run(
-                        [conda_cmd, "run", "-n", conda_env, "which", "mfa"],
-                        capture_output=True,
-                        text=True,
-                        timeout=5
-                    )
-                    if result.returncode == 0:
-                        mfa_path = result.stdout.strip()
-                        if mfa_path and Path(mfa_path).exists():
-                            mfa_available = True
-                except (subprocess.TimeoutExpired, FileNotFoundError):
-                    pass
-            
-            if not mfa_available:
-                print(f"Warning: MFA not found in conda environment '{conda_env}'.")
-                if not conda_cmd:
-                    print("Warning: conda not found. Please ensure conda is installed and accessible.")
-                    print("  Common locations: ~/miniforge3/bin/conda, ~/anaconda3/bin/conda")
-                    print("  Or set CONDA_EXE environment variable")
-                else:
-                    print(f"  MFA should be installed in environment '{conda_env}'")
-                    print(f"  To check: conda run -n {conda_env} which mfa")
-                    print(f"  To install: conda install -c conda-forge montreal-forced-aligner -n {conda_env} -y")
-            
-            # Initialize MFA aligner (will handle missing binary gracefully)
-            mfa_aligner = get_mfa_aligner()
-            if mfa_aligner:
-                print("MFA aligner loaded successfully!")
-            else:
-                print("Warning: MFA aligner initialization failed")
-        else:
-            print("MFA aligner already loaded.")
-    except Exception as e:
-        print(f"Warning: MFA aligner loading failed: {e}")
-        import traceback
-        traceback.print_exc()
-        mfa_aligner = None
-
-
-def collapse_consecutive_duplicates(phonemes: List[str]) -> List[str]:
-    """
-    Collapse consecutive duplicate phonemes (same logic as CTC collapse).
-    This ensures that expected and recognized phonemes are processed consistently.
-    
-    Args:
-        phonemes: List of phoneme strings
-        
-    Returns:
-        List of phonemes with consecutive duplicates collapsed
-    """
-    if not phonemes:
-        return phonemes
-    
-    collapsed = []
-    prev_phoneme = None
-    
-    for phoneme in phonemes:
-        # Skip empty phonemes
-        if not phoneme or not phoneme.strip():
-            continue
-        
-        # If different from previous, add it
-        if phoneme != prev_phoneme:
-            collapsed.append(phoneme)
-            prev_phoneme = phoneme
-        # If same as previous, skip it (CTC collapse)
-        # prev_phoneme stays the same to allow same token later
-    
-    return collapsed
-
-
-def initialize_components():
-    """Initialize global components."""
-    # global vad_detector, audio_normalizer, phoneme_recognizer, phoneme_filter, forced_aligner, diagnostic_engine, optional_validator, asr_recognizer
-    global audio_normalizer, phoneme_recognizer, phoneme_filter, forced_aligner, diagnostic_engine, optional_validator, asr_recognizer, mfa_aligner
-    
-    import json, time
-    init_components_start = time.time()
-    
-    if audio_normalizer is None:
-        try:
-            comp_start = time.time()
-            audio_normalizer = get_audio_normalizer()
-            comp_elapsed = (time.time() - comp_start) * 1000
-            print("Audio normalizer initialized")
-        except Exception as e:
-            print(f"Warning: Audio normalizer initialization failed: {e}")
-            audio_normalizer = None
-    
-    # VAD initialization commented out - VAD trimming is disabled
-    # if vad_detector is None:
-    #     try:
-    #         vad_detector = get_vad_detector(method=config.VAD_METHOD)
-    #         print("VAD detector initialized")
-    #     except Exception as e:
-    #         print(f"Warning: VAD initialization failed: {e}")
-    #         vad_detector = None
-    
-    if phoneme_recognizer is None:
-        try:
-            comp_start = time.time()
-            phoneme_recognizer = get_phoneme_recognizer(
-                model_name=config.MODEL_NAME,
-                device=config.MODEL_DEVICE if config.MODEL_DEVICE != "auto" else None
-            )
-            comp_elapsed = (time.time() - comp_start) * 1000
-            print(f"Phoneme recognizer (Wav2Vec2 XLSR-53 eSpeak) initialized with model: {phoneme_recognizer.model_name}")
-        except Exception as e:
-            print(f"Error: Phoneme recognizer initialization failed: {e}")
-            raise
-    
-    if phoneme_filter is None:
-        comp_start = time.time()
-        phoneme_filter = get_phoneme_filter(
-            whitelist=config.PHONEME_WHITELIST,
-            confidence_threshold=config.CONFIDENCE_THRESHOLD
-        )
-        comp_elapsed = (time.time() - comp_start) * 1000
-        print("Phoneme filter initialized")
-    
-    if forced_aligner is None:
-        comp_start = time.time()
-        forced_aligner = get_forced_aligner(blank_id=config.FORCED_ALIGNMENT_BLANK_ID)
-        comp_elapsed = (time.time() - comp_start) * 1000
-        print("Forced aligner initialized")
-    
-    if diagnostic_engine is None:
-        comp_start = time.time()
-        diagnostic_engine = get_diagnostic_engine()
-        comp_elapsed = (time.time() - comp_start) * 1000
-        print("Diagnostic engine initialized")
-    
-    if optional_validator is None:
-        comp_start = time.time()
-        optional_validator = get_optional_validator()
-        comp_elapsed = (time.time() - comp_start) * 1000
-        print("Optional validator initialized")
-    
-    # Preload G2P dictionaries to avoid lazy loading delay
-    comp_start = time.time()
-    from modules.g2p_module import get_g2p_converter
-    g2p_converter = get_g2p_converter(load_dicts_immediately=False)
-    if not g2p_converter._dicts_loaded:
-        print("Preloading G2P dictionaries...")
-        g2p_converter._load_dictionaries()
-        print("G2P dictionaries preloaded!")
-    comp_elapsed = (time.time() - comp_start) * 1000    
-    # ASR is loaded separately in initialize_asr_only()
-    # Initialize ASR here only if not already loaded
-    if asr_recognizer is None and config.ASR_ENABLED:
-        initialize_asr_only()
-    
-    # Initialize MFA aligner if enabled and not already loaded
-    if mfa_aligner is None and config.MFA_ENABLED:
-        try:
-            mfa_aligner = get_mfa_aligner()
-            if mfa_aligner:
-                print("MFA aligner initialized")
-        except Exception as e:
-            print(f"Warning: MFA aligner initialization failed: {e}")
-            mfa_aligner = None
-
-
-def normalize_chat_history(chat_history: Optional[List]) -> List:
-    """
-    Normalize chat history to the format expected by Gradio Chatbot.
-    Converts old tuple format [user_msg, assistant_msg] to dict format.
-    
-    Args:
-        chat_history: Chat history in any format (None, list of tuples, or list of dicts)
-        
-    Returns:
-        List of message dictionaries with 'role' and 'content' keys
-    """
-    if chat_history is None:
-        return []
-    
-    normalized = []
-    for msg in chat_history:
-        if isinstance(msg, dict):
-            # Already in correct format
-            normalized.append(msg)
-        elif isinstance(msg, (list, tuple)) and len(msg) == 2:
-            # Old tuple format [user_msg, assistant_msg] - convert to dict format
-            user_msg, assistant_msg = msg
-            normalized.append({"role": "user", "content": user_msg})
-            normalized.append({"role": "assistant", "content": assistant_msg})
-        else:
-            # Unknown format - skip
-            continue
-    
-    return normalized
-
-
-def add_to_chat_history(chat_history: Optional[List], user_message: str, assistant_message: str) -> List:
-    """
-    Add a new message pair to chat history in the correct format.
-    
-    Args:
-        chat_history: Current chat history (any format)
-        user_message: User message text
-        assistant_message: Assistant message text (HTML)
-        
-    Returns:
-        Updated chat history in normalized format
-    """
-    normalized = normalize_chat_history(chat_history)
-    normalized.append({"role": "user", "content": user_message})
-    normalized.append({"role": "assistant", "content": assistant_message})
-    return normalized
 
 
 def process_pronunciation(
@@ -491,7 +102,7 @@ def process_pronunciation(
         # Initialize components
         init_start = time.time()
         initialize_components()
-        init_elapsed = (time.time() - init_start) * 1000        
+        init_elapsed = (time.time() - init_start) * 1000
         # Extract audio
         if isinstance(audio_file, tuple):
             sample_rate, audio_array = audio_file
@@ -508,52 +119,11 @@ def process_pronunciation(
             sf.write(tmp_path, audio_array, sample_rate)
         audio_save_elapsed = (time.time() - audio_save_start) * 1000        
         try:
-            # Stage 0: Audio normalization (for AGC issues) - COMMENTED OUT
-            # normalized_audio_path = tmp_path
-            # if audio_normalizer is not None and config.ENABLE_AUDIO_NORMALIZATION:
-            #     try:
-            #         with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as normalized_file:
-            #             normalized_path = normalized_file.name
-            #         normalized_audio_path = audio_normalizer.process_audio_file(
-            #             tmp_path,
-            #             normalized_path,
-            #             sample_rate,
-            #             compress_peaks=config.NORMALIZE_COMPRESS_PEAKS,
-            #             peak_compression_ratio=config.NORMALIZE_PEAK_COMPRESSION_RATIO,
-            #             peak_compression_duration_ms=config.NORMALIZE_PEAK_COMPRESSION_DURATION_MS,
-            #             normalize_method=config.NORMALIZE_METHOD
-            #         )
-            #         print(f"Audio normalization: Compressed peaks and normalized")
-            #     except Exception as e:
-            #         print(f"Warning: Audio normalization failed: {e}")
-            #         normalized_audio_path = tmp_path
             normalized_audio_path = tmp_path  # Use original audio without normalization
             
-            # Stage 1: VAD - Trim noise (DISABLED - commented out)
-            # VAD trimming is disabled - using normalized audio (or original) directly
+            # Stage 1: VAD - Trim noise (DISABLED)
             vad_info = {'enabled': False, 'reason': 'VAD disabled'}
             trimmed_audio_path = normalized_audio_path  # Use normalized audio directly without VAD trimming
-            # vad_info = {}
-            # trimmed_audio_path = normalized_audio_path
-            # if vad_detector is not None:
-            #     try:
-            #         with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as trimmed_file:
-            #             trimmed_path = trimmed_file.name
-            #         # Use ultra-conservative padding
-            #         trimmed_audio_path = vad_detector.trim_audio(
-            #             normalized_audio_path,  # Use normalized audio for VAD
-            #             trimmed_path,
-            #             sample_rate,
-            #             padding_ms=config.VAD_PADDING_MS  # Will use VAD_PADDING_END_MS for end internally
-            #         )
-            #         vad_info = {'enabled': True, 'trimmed_path': trimmed_audio_path}
-            #         print(f"VAD: Audio trimmed")
-            #     except Exception as e:
-            #         print(f"Warning: VAD failed: {e}")
-            #         trimmed_audio_path = tmp_path
-            #         vad_info = {'enabled': False, 'error': str(e)}
-            # else:
-            #     vad_info = {'enabled': False, 'reason': 'VAD not available'}
             
             # Stage 2: ASR - Speech-to-Text recognition
             asr_start = time.time()
@@ -562,9 +132,9 @@ def process_pronunciation(
             
             # If text is empty, we MUST use ASR to get text from audio
             if text_is_empty:
-                if asr_recognizer and config.ASR_ENABLED:
+                if component_manager.asr_recognizer and config.ASR_ENABLED:
                     try:
-                        recognized_text = asr_recognizer.transcribe(
+                        recognized_text = component_manager.asr_recognizer.transcribe(
                             trimmed_audio_path,
                             language=config.ASR_LANGUAGE
                         )
@@ -572,9 +142,9 @@ def process_pronunciation(
                         # Determine ASR engine with detailed logging
                         asr_engine = "unknown"
                         asr_device = "unknown"
-                        has_recognizer = hasattr(asr_recognizer, 'recognizer')
-                        has_model = hasattr(asr_recognizer, 'model')
-                        asr_type = str(type(asr_recognizer))
+                        has_recognizer = hasattr(component_manager.asr_recognizer, 'recognizer')
+                        has_model = hasattr(component_manager.asr_recognizer, 'model')
+                        asr_type = str(type(component_manager.asr_recognizer))
                         
                         if has_recognizer:
                             asr_engine = "macos"
@@ -582,8 +152,8 @@ def process_pronunciation(
                         elif has_model:
                             asr_engine = "whisper"
                             # Get device from Whisper recognizer
-                            if hasattr(asr_recognizer, 'device'):
-                                asr_device = asr_recognizer.device
+                            if hasattr(component_manager.asr_recognizer, 'device'):
+                                asr_device = component_manager.asr_recognizer.device
                             else:
                                 asr_device = "unknown"
                         print(f"ASR: Recognized text (from audio): '{recognized_text}'")
@@ -604,11 +174,11 @@ def process_pronunciation(
                     user_message = f"Text: {text if text else 'Audio input'}" + (f" | Validation: {'Enabled' if enable_validation else 'Disabled'}" if enable_validation else "")
                     chat_history = add_to_chat_history(chat_history, user_message, error_html)
                     return (chat_history, text, audio_file)
-            elif asr_recognizer and config.ASR_ENABLED and config.ASR_ALWAYS_RUN:
+            elif component_manager.asr_recognizer and config.ASR_ENABLED and config.ASR_ALWAYS_RUN:
                 # Text is provided, ASR is optional (for comparison)
                 # Only run if ASR_ALWAYS_RUN is enabled to save time
                 try:
-                    recognized_text = asr_recognizer.transcribe(
+                    recognized_text = component_manager.asr_recognizer.transcribe(
                         trimmed_audio_path,
                         language=config.ASR_LANGUAGE
                     )
@@ -616,9 +186,9 @@ def process_pronunciation(
                     # Determine ASR engine with detailed logging
                     asr_engine = "unknown"
                     asr_device = "unknown"
-                    has_recognizer = hasattr(asr_recognizer, 'recognizer')
-                    has_model = hasattr(asr_recognizer, 'model')
-                    asr_type = str(type(asr_recognizer))
+                    has_recognizer = hasattr(component_manager.asr_recognizer, 'recognizer')
+                    has_model = hasattr(component_manager.asr_recognizer, 'model')
+                    asr_type = str(type(component_manager.asr_recognizer))
                     
                     if has_recognizer:
                         asr_engine = "macos"
@@ -626,8 +196,8 @@ def process_pronunciation(
                     elif has_model:
                         asr_engine = "whisper"
                         # Get device from Whisper recognizer
-                        if hasattr(asr_recognizer, 'device'):
-                            asr_device = asr_recognizer.device
+                        if hasattr(component_manager.asr_recognizer, 'device'):
+                            asr_device = component_manager.asr_recognizer.device
                         else:
                             asr_device = "unknown"
                     print(f"ASR: Recognized text: '{recognized_text}'")
@@ -717,15 +287,15 @@ def process_pronunciation(
             
             # Stage 3: Phoneme Recognition (Wav2Vec2 XLSR-53 eSpeak)
             phoneme_rec_start = time.time()
-            logits, emissions = phoneme_recognizer.recognize_phonemes(
+            logits, emissions = component_manager.phoneme_recognizer.recognize_phonemes(
                 trimmed_audio_path,
                 sample_rate=config.SAMPLE_RATE
             )
-            vocab = phoneme_recognizer.get_vocab()
+            vocab = component_manager.phoneme_recognizer.get_vocab()
             
             # Decode phonemes (for display)
             decode_start = time.time()
-            decoded_phonemes_str = phoneme_recognizer.decode_phonemes(logits)
+            decoded_phonemes_str = component_manager.phoneme_recognizer.decode_phonemes(logits)
             decode_elapsed = (time.time() - decode_start) * 1000
             phoneme_rec_elapsed = (time.time() - phoneme_rec_start) * 1000            
             raw_phonemes = decoded_phonemes_str.split()
@@ -736,7 +306,7 @@ def process_pronunciation(
             # Stage 4: Multi-level Filtering
             # Note: Filtering is kept for forced alignment (uses ARPABET), but raw_phonemes are used for display and alignment
             filter_start = time.time()
-            filtered_phonemes = phoneme_filter.filter_combined(
+            filtered_phonemes = component_manager.phoneme_filter.filter_combined(
                 logits,
                 raw_phonemes,
                 vocab
@@ -783,7 +353,7 @@ def process_pronunciation(
             # 3. MFA aligner is available and text is provided
             use_mfa = (config.MFA_ENABLED and 
                       enable_validation and 
-                      mfa_aligner is not None and 
+                      component_manager.mfa_aligner is not None and 
                       text and text.strip())
             
             # Choose alignment method: MFA or CTC
@@ -793,7 +363,7 @@ def process_pronunciation(
                     mfa_align_start = time.time()
                     # Get expected phonemes for MFA (from original text)
                     expected_phonemes_for_mfa = [ph.get('phoneme', '') for ph in get_expected_phonemes(text)]
-                    recognized_segments = mfa_aligner.extract_phoneme_segments(
+                    recognized_segments = component_manager.mfa_aligner.extract_phoneme_segments(
                         Path(trimmed_audio_path),
                         text.strip(),
                         expected_phonemes_for_mfa,
@@ -841,7 +411,7 @@ def process_pronunciation(
                 if len(recognized_phonemes_arpabet) > 0:
                     try:
                         ctc_align_start = time.time()
-                        recognized_segments = forced_aligner.extract_phoneme_segments(
+                        recognized_segments = component_manager.forced_aligner.extract_phoneme_segments(
                             waveform_tensor,
                             recognized_phonemes_arpabet,
                             emissions,
@@ -904,7 +474,7 @@ def process_pronunciation(
             
             # Stage 8: Diagnostic Analysis
             diagnostic_start = time.time()
-            diagnostic_results = diagnostic_engine.analyze_pronunciation(aligned_pairs)
+            diagnostic_results = component_manager.diagnostic_engine.analyze_pronunciation(aligned_pairs)
             diagnostic_elapsed = (time.time() - diagnostic_start) * 1000            
             # Store aligned_pairs before validation for comparison
             aligned_pairs_before_validation = [(exp, rec) for exp, rec in aligned_pairs] if enable_validation else None
@@ -914,7 +484,7 @@ def process_pronunciation(
             validation_start = time.time()
             validation_count = 0
             validation_corrected_count = 0
-            if enable_validation and optional_validator:
+            if enable_validation and component_manager.optional_validator:
                 # For each mismatch in aligned_pairs, try to validate with trained model
                 print(f"Optional validation enabled - checking {len(aligned_pairs)} aligned pairs")
                 
@@ -936,9 +506,9 @@ def process_pronunciation(
                         continue
                     
                     # Check if trained model exists for this phoneme pair
-                    if optional_validator.has_trained_model(expected_ph, recognized_ph):
+                    if component_manager.optional_validator.has_trained_model(expected_ph, recognized_ph):
                         # Get proper phoneme pair name
-                        phoneme_pair = optional_validator.get_phoneme_pair(expected_ph, recognized_ph)
+                        phoneme_pair = component_manager.optional_validator.get_phoneme_pair(expected_ph, recognized_ph)
                         if phoneme_pair is None:
                             print(f"Warning: Could not get phoneme pair for {expected_ph} -> {recognized_ph}")
                             segment_index += 1
@@ -965,7 +535,7 @@ def process_pronunciation(
                                 'expected_phoneme': expected_ph,  # Expected correct phoneme
                                 'phoneme_pair': phoneme_pair,  # For logging/debugging
                                 'segment_index': segment_index,
-                                'validator': optional_validator
+                                'validator': component_manager.optional_validator
                             })
                         else:
                             print(f"Warning: No segment found for {recognized_ph} at index {segment_index}")
@@ -1175,7 +745,7 @@ def process_pronunciation(
                 """
             
             validation_info = ""
-            if enable_validation and optional_validator:
+            if enable_validation and component_manager.optional_validator:
                 validation_info = f"""
                     <li><strong>Optional validation:</strong> Enabled</li>
                     <li><strong>Validated phonemes:</strong> {validation_count}</li>
@@ -1189,7 +759,7 @@ def process_pronunciation(
                 <h4>Technical Information</h4>
                 <ul>
                     <li><strong>VAD:</strong> Disabled (commented out)</li>
-                    <li><strong>ASR:</strong> {'Enabled' if (asr_recognizer and config.ASR_ENABLED) else 'Disabled'}</li>
+                    <li><strong>ASR:</strong> {'Enabled' if (component_manager.asr_recognizer and config.ASR_ENABLED) else 'Disabled'}</li>
                     <li><strong>Expected phonemes:</strong> {len(expected_phonemes)}</li>
                     <li><strong>Model:</strong> {config.MODEL_NAME}</li>
                     <li><strong>Raw phonemes:</strong> {len(raw_phonemes)}</li>
@@ -1265,223 +835,13 @@ def process_pronunciation(
         return (chat_history, text, audio_file)
 
 
-def load_models_in_background():
-    """Load models in background: first ASR, then dictionaries, then phoneme model."""
-    print("Starting background model loading...")
-    try:
-        # Stage 1: Load ASR (Whisper or macOS Speech) first - this is critical for user experience
-        print("Stage 1: Loading ASR...")
-        initialize_asr_only()
-        print("ASR loaded successfully!")
-        
-        # Stage 2: Load dictionaries after ASR is ready
-        print("Stage 2: Loading G2P dictionaries...")
-        load_dictionaries_in_background()
-        
-        # Stage 3: Load phoneme recognition model (Wav2Vec2) in background
-        # This prevents 5+ second delay on first button click
-        load_phoneme_model_in_background()
-        
-        # Stage 4: Load MFA aligner in background (if enabled)
-        if config.MFA_ENABLED:
-            load_mfa_in_background()
-        
-        print("All models loaded successfully in background!")
-    except Exception as e:
-        print(f"Warning: Some components failed to initialize in background: {e}")
-
-
 def create_interface():
     """Create Gradio interface."""
     
     # Don't initialize components on startup - let them load in background
     # This allows browser to open quickly
     
-    with gr.Blocks(title="German Pronunciation Diagnostic App (L2-Trainer)", theme=gr.themes.Monochrome(), css="""
-        /* Center-align the main heading */
-        .gradio-container h1 {
-            text-align: center !important;
-        }
-        /* Set font for entire interface */
-        .gradio-container, .gradio-container * {
-            font-family: 'Consolas', monospace !important;
-        }
-        .gradio-container .chatbot {
-            height: 70vh !important;
-            min-height: 400px;
-        }
-        /* Align elements by height - works for rows with equal_height (excluding unequal-height) */
-        .gradio-container .row:not(.unequal-height) > .column {
-            display: flex !important;
-            align-items: stretch !important;
-        }
-        .gradio-container .row:not(.unequal-height) > .column > .block {
-            display: flex !important;
-            flex-direction: column !important;
-            width: 100% !important;
-        }
-        /* Align text field by height - occupies entire available area (only for equal_height rows) */
-        .gradio-container .row:not(.unequal-height) > .column:first-child .form {
-            display: flex !important;
-            flex-direction: column !important;
-            height: 100% !important;
-        }
-        .gradio-container .row:not(.unequal-height) > .column:first-child .form .block {
-            flex: 1 !important;
-            display: flex !important;
-            flex-direction: column !important;
-            height: 100% !important;
-        }
-        /* Textarea container occupies full height (only for equal_height rows) */
-        .gradio-container .row:not(.unequal-height) > .column:first-child .form .block > label {
-            flex: 1 !important;
-            display: flex !important;
-            flex-direction: column !important;
-            height: 100% !important;
-        }
-        .gradio-container .row:not(.unequal-height) > .column:first-child .form .block > label > .input-container {
-            flex: 1 !important;
-            display: flex !important;
-            height: 100% !important;
-        }
-        /* Textarea occupies full height of block (only for equal_height rows) */
-        .gradio-container .row:not(.unequal-height) > .column:first-child textarea {
-            flex: 1 !important;
-            height: 100% !important;
-            min-height: 100% !important;
-            resize: none !important;
-        }
-        /* Align checkbox and button to right edge in one column (only for equal_height rows) */
-        .gradio-container .row:not(.unequal-height) > .column:last-child {
-            justify-content: flex-end !important;
-            align-items: flex-end !important;
-        }
-        .gradio-container .row:not(.unequal-height) > .column:last-child .block {
-            display: flex !important;
-            flex-direction: column !important;
-            align-items: flex-end !important;
-            gap: 10px !important;
-        }
-        /* Improve display of phoneme sequences */
-        /* Phoneme containers should use full available width */
-        .gradio-container div[data-block-id='side-by-side-comparison'] {
-            width: 100% !important;
-            max-width: 100% !important;
-            box-sizing: border-box !important;
-        }
-        /* Phoneme sequences should be distributed across full width */
-        .gradio-container div[data-block-id='side-by-side-comparison'] > div > div {
-            width: 100% !important;
-            max-width: 100% !important;
-            box-sizing: border-box !important;
-        }
-        /* Natural wrapping of phoneme sequences, like regular text */
-        /* Phoneme containers should use natural line wrapping, like regular text */
-        .gradio-container div[data-block-id='side-by-side-comparison'] div[style*="font-size: 18px"][style*="line-height: 1.3"] {
-            width: 100% !important;
-            max-width: 100% !important;
-            box-sizing: border-box !important;
-            white-space: normal !important;
-            word-wrap: break-word !important;
-            overflow-wrap: break-word !important;
-        }
-        /* Inline-block elements should wrap naturally, like regular text */
-        .gradio-container div[data-block-id='side-by-side-comparison'] div[style*="font-size: 18px"] > span[style*="display: inline-block"] {
-            white-space: normal !important;
-            overflow-wrap: break-word !important;
-        }
-        /* Horizontal scrolling for long sequences */
-        .gradio-container div[style*="overflow-x: auto"] {
-            scrollbar-width: thin !important;
-            scrollbar-color: #cbd5e0 #f7fafc !important;
-        }
-        .gradio-container div[style*="overflow-x: auto"]::-webkit-scrollbar {
-            height: 6px !important;
-        }
-        .gradio-container div[style*="overflow-x: auto"]::-webkit-scrollbar-track {
-            background: #f7fafc !important;
-        }
-        .gradio-container div[style*="overflow-x: auto"]::-webkit-scrollbar-thumb {
-            background: #cbd5e0 !important;
-            border-radius: 3px !important;
-        }
-        /* Adaptive distribution for different screen sizes */
-        @media (min-width: 1200px) {
-            .gradio-container div[data-block-id='side-by-side-comparison'] {
-                max-width: calc(100vw - 200px) !important;
-            }
-        }
-        @media (max-width: 768px) {
-            .gradio-container div[data-block-id='side-by-side-comparison'] {
-                max-width: calc(100vw - 40px) !important;
-            }
-        }
-        /* Stretch main Row with chat and controls */
-        .gradio-container .row.unequal-height {
-            display: flex !important;
-            align-items: stretch !important;
-            min-height: 600px !important;
-        }
-        /* Stretch left column with chat */
-        .gradio-container .row.unequal-height > .column:first-child {
-            display: flex !important;
-            flex-direction: column !important;
-            height: 100% !important;
-        }
-        /* Stretch right column to chat height */
-        .gradio-container .row.unequal-height > .column:nth-child(2) {
-            display: flex !important;
-            flex-direction: column !important;
-            height: 100% !important;
-            align-items: stretch !important;
-        }
-        /* Stretch inner Row with controls by height */
-        .gradio-container .row.unequal-height > .column:nth-child(2) > .row {
-            display: flex !important;
-            flex: 1 !important;
-            align-items: stretch !important;
-            min-height: 0 !important;
-        }
-        /* Align Audio Input to top edge */
-        .gradio-container .row.unequal-height > .column:nth-child(2) > .row > .column:first-child {
-            display: flex !important;
-            align-items: flex-start !important;
-        }
-        /* Align validation controls to bottom edge - stretch to full height */
-        .gradio-container .row.unequal-height > .column:nth-child(2) > .row > .column:last-child {
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: flex-end !important;
-            align-items: stretch !important;
-        }
-        /* Block with validation controls - aligns button to bottom */
-        .gradio-container .row.unequal-height > .column:nth-child(2) > .row > .column:last-child > .block {
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: flex-end !important;
-            gap: 10px !important;
-            flex: 1 !important;
-        }
-        /* Form with validation controls - aligns button to bottom */
-        .gradio-container .row.unequal-height > .column:nth-child(2) > .row > .column:last-child > .form {
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: flex-end !important;
-            flex: 1 !important;
-        }
-        /* Record button styling - make it larger and center text */
-        .gradio-container button.record.record-button {
-            min-width: 120px !important;
-            width: auto !important;
-            height: 36px !important;
-            padding: 0 16px !important;
-            text-align: center !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            box-sizing: border-box !important;
-        }
-    """) as app:
+    with gr.Blocks(title="German Pronunciation Diagnostic App (L2-Trainer)", theme=gr.themes.Monochrome(), css=GRADIO_CUSTOM_CSS) as app:
         gr.Markdown("""
         # German Pronunciation Diagnostic App (L2-Trainer)
         """)
