@@ -129,6 +129,56 @@ class OptionalPhonemeValidator:
             print(f"Error checking for trained model: {e}")
             return False
     
+    def validate_phoneme(
+        self,
+        audio: np.ndarray,
+        phoneme: str,
+        position_ms: float,
+        expected_phoneme: str
+    ) -> Dict:
+        """
+        Validate phoneme using trained model with full audio waveform and position.
+        This method matches the notebook implementation.
+        
+        Args:
+            audio: Full audio waveform as numpy array
+            phoneme: Recognized phoneme (what was detected)
+            position_ms: Position in milliseconds where the phoneme is located
+            expected_phoneme: Expected correct phoneme
+            
+        Returns:
+            Dictionary with validation results:
+            {
+                'is_correct': bool,
+                'confidence': float,
+                'predicted_phoneme': str,
+                ...
+            }
+        """
+        if self.validator is None:
+            return {
+                'is_correct': None,
+                'confidence': 0.0,
+                'error': 'Validator not available'
+            }
+        
+        try:
+            result = self.validator.validate_phoneme(
+                audio=audio,
+                phoneme=phoneme,
+                position_ms=position_ms,
+                expected_phoneme=expected_phoneme
+            )
+            
+            return result
+        except Exception as e:
+            print(f"Error in phoneme validation: {e}")
+            return {
+                'is_correct': None,
+                'confidence': 0.0,
+                'error': str(e)
+            }
+    
     def validate_phoneme_segment(
         self,
         audio_segment: np.ndarray,

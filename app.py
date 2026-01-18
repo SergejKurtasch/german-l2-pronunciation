@@ -50,13 +50,14 @@ from modules.mfa_alignment import get_mfa_aligner
 def validate_single_phoneme(task_data):
     """
     Wrapper function for parallel phoneme validation.
+    Uses validate_phoneme() with full audio waveform and position_ms (matching notebook implementation).
     
     Args:
         task_data: Dictionary containing validation task parameters:
-            - audio_segment: Audio segment to validate
-            - phoneme_pair: Phoneme pair name
+            - audio: Full audio waveform
+            - phoneme: Recognized phoneme (what was detected)
+            - position_ms: Position in milliseconds where the phoneme is located
             - expected_phoneme: Expected phoneme
-            - suspected_phoneme: Suspected phoneme
             - index: Index in aligned_pairs
             - segment_index: Index in recognized_segments
     
@@ -64,24 +65,23 @@ def validate_single_phoneme(task_data):
         Dictionary with validation result and metadata:
             - index: Original index in aligned_pairs
             - segment_index: Index in recognized_segments
-            - validation_result: Result from validate_phoneme_segment
+            - validation_result: Result from validate_phoneme
     """
     try:
         validator = task_data['validator']
-        result = validator.validate_phoneme_segment(
-            task_data['audio_segment'],
-            phoneme_pair=task_data['phoneme_pair'],
-            expected_phoneme=task_data['expected_phoneme'],
-            suspected_phoneme=task_data['suspected_phoneme'],
-            sr=task_data['sr']
+        result = validator.validate_phoneme(
+            audio=task_data['audio'],
+            phoneme=task_data['phoneme'],
+            position_ms=task_data['position_ms'],
+            expected_phoneme=task_data['expected_phoneme']
         )
         return {
             'index': task_data['index'],
             'segment_index': task_data['segment_index'],
             'validation_result': result,
             'expected_phoneme': task_data['expected_phoneme'],
-            'recognized_phoneme': task_data['suspected_phoneme'],
-            'phoneme_pair': task_data['phoneme_pair'],
+            'recognized_phoneme': task_data['phoneme'],
+            'phoneme_pair': task_data.get('phoneme_pair', ''),
             'error': None
         }
     except Exception as e:
@@ -95,7 +95,7 @@ def validate_single_phoneme(task_data):
                 'error': str(e)
             },
             'expected_phoneme': task_data.get('expected_phoneme', ''),
-            'recognized_phoneme': task_data.get('suspected_phoneme', ''),
+            'recognized_phoneme': task_data.get('phoneme', ''),
             'phoneme_pair': task_data.get('phoneme_pair', ''),
             'error': str(e)
         }
@@ -919,10 +919,9 @@ def process_pronunciation(
                 print(f"Optional validation enabled - checking {len(aligned_pairs)} aligned pairs")
                 
                 # Step 1: Collect all validation tasks
+                # Using validate_phoneme() with full waveform and position_ms (matching notebook implementation)
                 validation_tasks = []
                 segment_index = 0
-                MIN_SEGMENT_LENGTH = 100  # samples
-                CONTEXT_MS = 100.0  # Use 100ms context window
                 
                 for i, (expected_ph, recognized_ph) in enumerate(aligned_pairs):
                     # Skip if match, missing (None), or word boundary
@@ -951,36 +950,22 @@ def process_pronunciation(
                             segment = recognized_segments[segment_index]
                         
                         if segment:
-                            # Extract audio segment
-                            start_sample = int(segment.start_time * config.SAMPLE_RATE)
-                            end_sample = int(segment.end_time * config.SAMPLE_RATE)
-                            audio_segment = waveform[start_sample:end_sample].copy()
-                            
-                            # Fallback for empty or very short segments (< 100 samples = ~6ms)
-                            # This happens when forced aligner fails to determine boundaries (e.g., at end of audio)
-                            if len(audio_segment) < MIN_SEGMENT_LENGTH:
-                                # Use segment start_time as center point, or estimate from index
-                                center_time = segment.start_time if segment.start_time > 0 else (segment_index / len(recognized_segments)) * (len(waveform) / config.SAMPLE_RATE)
-                                
-                                # Extract context window around the position
-                                context_samples = int(CONTEXT_MS / 1000 * config.SAMPLE_RATE)
-                                half_context = context_samples // 2
-                                center_sample = int(center_time * config.SAMPLE_RATE)
-                                
-                                fallback_start = max(0, center_sample - half_context)
-                                fallback_end = min(len(waveform), center_sample + half_context)
-                                audio_segment = waveform[fallback_start:fallback_end].copy()
+                            # Calculate position in milliseconds (center of segment)
+                            # segment.start_time and segment.end_time are in seconds
+                            center_time_seconds = (segment.start_time + segment.end_time) / 2.0
+                            position_ms = center_time_seconds * 1000.0
                             
                             # Add task to validation queue
+                            # Using validate_phoneme() with full waveform and position_ms (matching notebook)
                             validation_tasks.append({
                                 'index': i,
-                                'audio_segment': audio_segment,
-                                'phoneme_pair': phoneme_pair,
-                                'expected_phoneme': expected_ph,
-                                'suspected_phoneme': recognized_ph,
+                                'audio': waveform,  # Full waveform, not extracted segment
+                                'phoneme': recognized_ph,  # Recognized phoneme (what was detected)
+                                'position_ms': position_ms,  # Center of segment in milliseconds
+                                'expected_phoneme': expected_ph,  # Expected correct phoneme
+                                'phoneme_pair': phoneme_pair,  # For logging/debugging
                                 'segment_index': segment_index,
-                                'validator': optional_validator,
-                                'sr': config.SAMPLE_RATE
+                                'validator': optional_validator
                             })
                         else:
                             print(f"Warning: No segment found for {recognized_ph} at index {segment_index}")
@@ -1483,6 +1468,18 @@ def create_interface():
             flex-direction: column !important;
             justify-content: flex-end !important;
             flex: 1 !important;
+        }
+        /* Record button styling - make it larger and center text */
+        .gradio-container button.record.record-button {
+            min-width: 120px !important;
+            width: auto !important;
+            height: 36px !important;
+            padding: 0 16px !important;
+            text-align: center !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            box-sizing: border-box !important;
         }
     """) as app:
         gr.Markdown("""
