@@ -5,6 +5,9 @@ Optional phoneme validator module for additional validation through trained mode
 from typing import Dict, Optional
 import numpy as np
 from pathlib import Path
+import os
+
+import config as app_config
 
 # Try to import validator from installed german-phoneme-validator package (optional)
 try:
@@ -27,9 +30,39 @@ class OptionalPhonemeValidator:
         self.validator = None
         if HAS_VALIDATOR:
             try:
-                # Initialize validator (artifacts_dir will be auto-detected from installed package)
-                self.validator = get_validator()
+                # Point Hugging Face Hub at the correct model repo (package default may be outdated).
+                repo_override = os.getenv("GERMAN_PHONEME_VALIDATOR_REPO_ID")
+                repo_id = repo_override or getattr(
+                    app_config, "PHONEME_VALIDATOR_HF_REPO_ID", None
+                )
+                if repo_id:
+                    try:
+                        from german_phoneme_validator.core import downloader as _validator_downloader
+                        _validator_downloader.DEFAULT_REPO_ID = repo_id
+                        print(f"Phoneme validator HF model repo: {repo_id}")
+                    except Exception as e:
+                        print(f"Warning: Could not set validator HF model repo: {e}")
+
+                # Initialize validator: env / config / sibling ../german-phoneme-validator/artifacts
+                artifacts_dir = app_config.resolve_phoneme_validator_artifacts_dir()
+                if artifacts_dir is not None and artifacts_dir.is_dir():
+                    print(f"Phoneme validator artifacts: {artifacts_dir}")
+                self.validator = get_validator(artifacts_dir=artifacts_dir)
                 available_pairs = self.validator.get_available_pairs()
+                if not available_pairs:
+                    # Fallback for validators that lazily download model assets from HF Hub:
+                    # use class_mapping keys as known supported pairs.
+                    class_mapping = getattr(self.validator, "class_mapping", None)
+                    if isinstance(class_mapping, dict) and class_mapping:
+                        available_pairs = sorted(class_mapping.keys())
+                        try:
+                            self.validator.available_pairs = available_pairs
+                        except Exception:
+                            pass
+                        print(
+                            "Optional validator initialized without local artifacts; "
+                            "using class_mapping fallback for pair discovery."
+                        )
                 print(f"Optional phoneme validator loaded from german-phoneme-validator package")
                 print(f"Available phoneme pairs: {len(available_pairs)} pairs")
                 if available_pairs:

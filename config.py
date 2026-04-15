@@ -2,8 +2,9 @@
 Configuration file for German Pronunciation Diagnostic App (L2-Trainer).
 """
 
+import os
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 # Project root
 PROJECT_ROOT = Path(__file__).parent
@@ -46,6 +47,36 @@ CONFIDENCE_THRESHOLD_STRICT = 0.6  # For high-confidence filtering (optional)
 # Validation confidence threshold for accepting phoneme corrections
 # If validation confidence > VALIDATION_CONFIDENCE_THRESHOLD, corrections are accepted
 VALIDATION_CONFIDENCE_THRESHOLD = 0.5  # 50% confidence threshold for validation corrections
+
+# Second-step validation (german-phoneme-validator): local model artifacts directory.
+# If None, use resolve_phoneme_validator_artifacts_dir() (env, then sibling folder).
+PHONEME_VALIDATOR_ARTIFACTS_DIR: Optional[Path] = None
+
+# Hugging Face Hub model repo for second-step validation (per-phoneme-pair folders).
+# Used when no local artifacts are present; models download on first use via huggingface_hub.
+# Override with env GERMAN_PHONEME_VALIDATOR_REPO_ID if needed.
+PHONEME_VALIDATOR_HF_REPO_ID: str = "SergejKurt/german-phoneme-models"
+
+
+def resolve_phoneme_validator_artifacts_dir() -> Optional[Path]:
+    """
+    Resolve directory with validator model folders (*_model / best_model.pt).
+
+    Order:
+    1. Environment variable GERMAN_PHONEME_VALIDATOR_ARTIFACTS_DIR
+    2. PHONEME_VALIDATOR_ARTIFACTS_DIR if set in this file
+    3. Sibling path ../german-phoneme-validator/artifacts relative to project root
+    """
+    env_val = os.getenv("GERMAN_PHONEME_VALIDATOR_ARTIFACTS_DIR")
+    if env_val:
+        return Path(env_val)
+    if PHONEME_VALIDATOR_ARTIFACTS_DIR is not None:
+        return Path(PHONEME_VALIDATOR_ARTIFACTS_DIR)
+    sibling = PROJECT_ROOT.parent / "german-phoneme-validator" / "artifacts"
+    if sibling.is_dir():
+        return sibling
+    return None
+
 
 # Phoneme decoding: Using greedy decoding for honest pronunciation diagnosis
 # Greedy decoding reflects actual pronunciation without "correcting" user errors,

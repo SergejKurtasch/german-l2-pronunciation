@@ -61,10 +61,10 @@ from modules.ui import GRADIO_CUSTOM_CSS
 
 def process_pronunciation(
     text: str,
-    audio_file: Optional[Tuple[int, np.ndarray]] = None,
+    audio_file=None,
     enable_validation: bool = False,
-    chat_history: Optional[List] = None
-) -> Tuple[List, str, str]:
+    chat_history=None
+):
     """
     Process pronunciation validation.
     
@@ -854,7 +854,8 @@ def create_interface():
                     label="Pronunciation Analysis",
                     height=600,
                     show_label=False,
-                    container=True
+                    container=True,
+                    type="messages"
                 )
             
             # Right side: Controls (30% width)
@@ -999,6 +1000,14 @@ def create_interface():
     return app
 
 
+def _get_env_bool(name: str, default: bool) -> bool:
+    """Read boolean environment variable with sane defaults."""
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+    return raw_value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 if __name__ == "__main__":
     app = create_interface()
     
@@ -1009,5 +1018,15 @@ if __name__ == "__main__":
     
     # Launch the interface
     # Browser will open quickly, models will load in background
-    app.launch(share=False, server_name="127.0.0.1", server_port=7860)
+    server_name = os.getenv("GRADIO_SERVER_NAME", "127.0.0.1")
+    server_port = int(os.getenv("GRADIO_SERVER_PORT", "7860"))
+    share = _get_env_bool("GRADIO_SHARE", True)
+    show_api = _get_env_bool("GRADIO_SHOW_API", False)
+
+    app.launch(
+        server_name=server_name,
+        server_port=server_port,
+        share=share,
+        show_api=show_api
+    )
 

@@ -15,6 +15,7 @@ phonemizer>=3.0.0
 # Alignment
 biopython>=1.81
 textgrid>=1.5.0  # For parsing MFA TextGrid output files
+ctc-forced-aligner>=0.1.0
 
 # VAD (Voice Activity Detection)
 silero-vad>=4.0.0
@@ -29,21 +30,15 @@ pyobjc-framework-AVFoundation>=9.0; sys_platform == "darwin"
 # Metrics
 jiwer>=3.0.0
 
-# Frontend
-gradio>=4.0.0
+# Frontend (4.44+ recommended: Chatbot type="messages", stable api_info/schema with current stacks)
+gradio>=4.44.1,<5.0.0
+
+# Hugging Face Hub (transformers cache; optional second-stage validator model download)
+huggingface_hub>=0.19.3
 
 # Utilities
 pathlib2>=2.3.7; python_version < '3.4'
 
-# Phoneme Validation (Second Stage Validation)
-# Install from local directory (development):
-#   pip install -e /path/to/german-phoneme-validator
-# Or from GitHub:
+# Optional: second-stage phoneme validation (separate package; weights on Hugging Face, not in this repo)
 #   pip install git+https://github.com/SergejKurtasch/german-phoneme-validator.git
-# Or if published to PyPI:
-#   german-phoneme-validator>=1.0.0
-# Local development installation - use relative path or install from parent directory
-# Example: pip install -e ../german-phoneme-validator
-# Or install from GitHub: pip install git+https://github.com/SergejKurtasch/german-phoneme-validator.git
-
-
+# Models: https://huggingface.co/SergejKurt/german-phoneme-models (~1.74 GB on first download)

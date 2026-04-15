@@ -26,14 +26,43 @@ A comprehensive diagnostic application for learning German pronunciation that co
   - Detailed report with feedback
   - Multi-model comparison views
 
-## Installation
+## Architecture
 
-1. Install dependencies:
+| Component | Where it lives | Role |
+|-----------|----------------|------|
+| This app (UI, ASR, G2P, Wav2Vec2, alignment, diagnostics) | This repository | Main pipeline and Gradio interface |
+| Second-stage validation (feature-based ML per phoneme pair) | [`german-phoneme-validator`](https://github.com/SergejKurtasch/german-phoneme-validator) on GitHub | Optional `pip` package; not vendored here |
+| Second-stage model weights (joblib folders per pair, ~1.74 GB total) | Hugging Face [`SergejKurt/german-phoneme-models`](https://huggingface.co/SergejKurt/german-phoneme-models) | Downloaded on first use into the HF cache (or use a local `artifacts/` tree) |
+
+The diagnostic app does **not** store those weights in git. After installing the validator package, models are pulled automatically unless you point the app at a local artifacts directory (see below).
+
+## Installation & Setup
+
+We provide automated scripts for easy setup and launch on macOS and Linux.
+
+### 1. Automated Setup (Recommended)
+Run the setup script to install system dependencies (like `espeak-ng`), create a virtual environment, and install all Python packages:
+```bash
+./scripts/setup_env.sh
+```
+
+### 2. Run the Application
+Once setup is complete, you can start the application using:
+```bash
+./scripts/run_app.sh
+```
+Then open your browser to `http://127.0.0.1:7860`
+
+---
+
+### Manual Installation (Optional)
+
+1. **Install dependencies**:
 ```bash
 pip install -r requirements.txt
 ```
 
-2. Install eSpeak NG (for G2P):
+2. **Install eSpeak NG** (required for G2P):
 - macOS: `brew install espeak-ng`
 - Linux: `sudo apt-get install espeak-ng`
 - Windows: Download from [eSpeak NG website](https://github.com/espeak-ng/espeak-ng)
@@ -54,13 +83,17 @@ mfa model download acoustic german_mfa
 ```
 Note: Update `MFA_CONDA_ENV` in `config.py` to match your conda environment name.
 
-5. (Optional) Install german-phoneme-validator for two-stage validation:
-```bash
-# From local directory
-pip install -e /path/to/german-phoneme-validator
-# Or from GitHub
-pip install git+https://github.com/SergejKurtasch/german-phoneme-validator.git
-```
+5. **(Optional) Second-stage validation** — install [`german-phoneme-validator`](https://github.com/SergejKurtasch/german-phoneme-validator) and enable “2 step validation” in the UI:
+
+   ```bash
+   pip install git+https://github.com/SergejKurtasch/german-phoneme-validator.git
+   # or, for local development:
+   pip install -e ../german-phoneme-validator
+   ```
+
+   - **Model weights** are hosted on Hugging Face: [`SergejKurt/german-phoneme-models`](https://huggingface.co/SergejKurt/german-phoneme-models) (~1.74 GB across pairs). They download on first use; ensure disk space and network for the initial run.
+   - **Offline / pre-downloaded models**: clone or copy the validator repo and place checkpoints under `german-phoneme-validator/artifacts/` (sibling of this project), **or** set `GERMAN_PHONEME_VALIDATOR_ARTIFACTS_DIR` to that folder.
+   - **Hub repo override** (if you fork weights): set `GERMAN_PHONEME_VALIDATOR_REPO_ID`, or edit `PHONEME_VALIDATOR_HF_REPO_ID` in `config.py` (default: `SergejKurt/german-phoneme-models`).
 
 ## Usage
 
@@ -111,6 +144,18 @@ Edit `config.py` to customize:
 - **MFA Settings**:
   - `MFA_ENABLED`: Enable/disable MFA alignment
   - `MFA_CONDA_ENV`: Conda environment name where MFA is installed
+
+- **Second-stage validation** (requires optional package; see Installation):
+  - `PHONEME_VALIDATOR_HF_REPO_ID`: Hugging Face repo id for validator models (default: `SergejKurt/german-phoneme-models`)
+  - `PHONEME_VALIDATOR_ARTIFACTS_DIR`: Optional explicit path in `config.py` to local model folders
+  - Environment: `GERMAN_PHONEME_VALIDATOR_ARTIFACTS_DIR` — local artifacts directory (takes precedence)
+  - Environment: `GERMAN_PHONEME_VALIDATOR_REPO_ID` — overrides the Hub repo id at runtime
+
+- **Gradio server** (optional environment variables):
+  - `GRADIO_SERVER_NAME` (default bind suitable for local use)
+  - `GRADIO_SERVER_PORT` (e.g. `7860`)
+  - `GRADIO_SHARE` — public Gradio link (`true`/`false`)
+  - `GRADIO_SHOW_API` — expose API docs in the UI
 
 - **VAD Settings**: Ultra-conservative settings to avoid cutting off speech
 - **Audio Normalization**: Adaptive normalization for AGC issues
@@ -178,8 +223,9 @@ SpeechRec-German-diagnostic/
 - **VAD**: silero-vad (>=4.0.0)
 - **ASR**: openai-whisper (>=20231117), pyobjc-framework-Speech (>=9.0, macOS only)
 - **Metrics**: jiwer (>=3.0.0)
-- **Frontend**: gradio (>=4.0.0)
-- **Optional**: MFA (via conda), german-phoneme-validator
+- **Frontend**: gradio (>=4.44.1, below 5.x)
+- **Hugging Face Hub**: huggingface_hub (caches ASR/phoneme and optional validator downloads)
+- **Optional**: MFA (via conda), [`german-phoneme-validator`](https://github.com/SergejKurtasch/german-phoneme-validator) (weights on [HF](https://huggingface.co/SergejKurt/german-phoneme-models))
 
 ## Notes
 
@@ -257,6 +303,13 @@ To test the application:
     - Update `MODEL_NAME` in `config.py` to use a valid model
 - **Component initialization errors**: Check that all required dependencies are installed
 - **Dictionary loading errors**: Dictionaries are downloaded automatically. If issues occur, check `DICTIONARY_DIR` path in `config.py`
+
+- **Second-stage validation missing or 0 pairs / no corrections**:
+  - Install the package: `pip install git+https://github.com/SergejKurtasch/german-phoneme-validator.git`
+  - Confirm Hub access for [`SergejKurt/german-phoneme-models`](https://huggingface.co/SergejKurt/german-phoneme-models) or set `GERMAN_PHONEME_VALIDATOR_ARTIFACTS_DIR` to a folder with `*_model` directories
+  - Check console logs for `Phoneme validator HF model repo:` and `Phoneme validator artifacts:`
+
+- **Gradio chat looks empty or raises schema errors**: Use `gradio>=4.44.1,<5` and ensure the chat uses message-shaped history (this app uses `gr.Chatbot(..., type="messages")` together with `role` / `content` dicts in `modules/chat_utils.py`).
 
 ## License
 
