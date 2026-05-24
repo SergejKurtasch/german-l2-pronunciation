@@ -1170,10 +1170,9 @@ if __name__ == "__main__":
     # Models are now loaded via app.load() inside create_interface(),
     # so no separate background thread is needed here.
 
-    _on_hf_spaces = bool(os.getenv("SPACE_ID"))
-    server_name = os.getenv("GRADIO_SERVER_NAME", "0.0.0.0" if _on_hf_spaces else "127.0.0.1")
+    server_name = os.getenv("GRADIO_SERVER_NAME", "0.0.0.0")
     server_port = int(os.getenv("GRADIO_SERVER_PORT", "7860"))
-    share = _get_env_bool("GRADIO_SHARE", not _on_hf_spaces)
+    share = _get_env_bool("GRADIO_SHARE", False)
     show_api = _get_env_bool("GRADIO_SHOW_API", False)
 
     app.launch(
