@@ -985,12 +985,9 @@ def create_interface():
             value=_startup_html([], "Starting up — loading models, please wait..."),
             visible=True,
         )
-        app.load(
-            fn=_startup_loading_sequence,
-            inputs=None,
-            outputs=[startup_status, process_btn],
-        )
-        
+        # NOTE: app.load() is wired below, after process_btn is defined,
+        # because it references process_btn in its outputs list.
+
         # Main layout: Chatbot on left (70%), controls on right (30%)
         with gr.Row():
             # Left side: Chatbot (70% width)
@@ -1140,7 +1137,14 @@ def create_interface():
             inputs=[text_input, audio_input, validation_checkbox, chatbot],
             outputs=[chatbot, text_input, audio_input]
         )
-        
+
+        # Wire startup loader here — process_btn is now defined above.
+        app.load(
+            fn=_startup_loading_sequence,
+            inputs=None,
+            outputs=[startup_status, process_btn],
+        )
+
         gr.Markdown("""
         ### Instructions:
         1. Enter a German sentence in the text box
