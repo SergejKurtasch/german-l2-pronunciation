@@ -285,7 +285,6 @@ def get_speech_recognizer(
                             
                             try:
                                 result = self.recognizer.transcribe(audio_path, language, task, verbose)
-                                transcribe_elapsed = (time.time() - transcribe_start) * 1000
                                 return result
                             except RuntimeError as e:
                                 # Check if it's a timeout error
@@ -309,19 +308,12 @@ def get_speech_recognizer(
                                     # Use Whisper for transcription
                                     try:
                                         whisper_result = self._whisper_fallback.transcribe(audio_path, language=whisper_language, task=task, verbose=verbose)
-                                        whisper_transcribe_elapsed = (time.time() - whisper_transcribe_start) * 1000
-                                        transcribe_elapsed = (time.time() - transcribe_start) * 1000
                                         return whisper_result
                                     except Exception as whisper_error:
-                                        whisper_transcribe_elapsed = (time.time() - whisper_transcribe_start) * 1000
-                                        transcribe_elapsed = (time.time() - transcribe_start) * 1000
                                         raise RuntimeError(f"macOS Speech timed out and Whisper transcription failed: {whisper_error}")
                                 else:
-                                    # Other runtime error - re-raise
-                                    transcribe_elapsed = (time.time() - transcribe_start) * 1000
                                     raise
                             except Exception as e:
-                                transcribe_elapsed = (time.time() - transcribe_start) * 1000
                                 raise
                     
                     return MacOSRecognizerWrapper(macos_recognizer)

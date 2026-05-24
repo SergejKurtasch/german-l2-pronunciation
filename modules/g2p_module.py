@@ -854,8 +854,6 @@ class G2PConverter:
             
             current_char_pos = token_pos + len(token)
         
-        token_processing_elapsed = (time.time() - token_processing_start) * 1000
-        
         return all_expected_phonemes
     
     def get_phoneme_string(self, text: str) -> str:
