@@ -39,6 +39,18 @@ class OptionalPhonemeValidator:
                     try:
                         from german_phoneme_validator.core import downloader as _validator_downloader
                         _validator_downloader.DEFAULT_REPO_ID = repo_id
+                        # Python evaluates default parameter values at function-definition time,
+                        # so setting DEFAULT_REPO_ID above does NOT change get_model_assets' default.
+                        # Patch the function so it reads DEFAULT_REPO_ID at call time instead.
+                        _orig_gma = _validator_downloader.get_model_assets
+                        def _patched_gma(phoneme_pair, repo_id=None, local_files_only=False,
+                                         _dl=_validator_downloader, _orig=_orig_gma):
+                            return _orig(
+                                phoneme_pair,
+                                repo_id=repo_id if repo_id is not None else _dl.DEFAULT_REPO_ID,
+                                local_files_only=local_files_only,
+                            )
+                        _validator_downloader.get_model_assets = _patched_gma
                         print(f"Phoneme validator HF model repo: {repo_id}")
                     except Exception as e:
                         print(f"Warning: Could not set validator HF model repo: {e}")
