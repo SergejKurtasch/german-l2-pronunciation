@@ -314,7 +314,8 @@ def initialize_and_preload_validator(progress_callback=None) -> None:
         print("Validator not available, skipping model preload")
         return
 
-    inner.preload_all_models(progress_callback=progress_callback)
+    if hasattr(inner, 'preload_all_models'):
+        inner.preload_all_models(progress_callback=progress_callback)
 
 
 def load_models_in_background():
