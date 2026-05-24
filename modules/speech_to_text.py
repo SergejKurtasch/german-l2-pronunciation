@@ -3,6 +3,7 @@ Speech-to-Text module using OpenAI Whisper for transcribing audio to text.
 Supports both Whisper and macOS native Speech framework.
 """
 
+import os
 import torch
 from pathlib import Path
 from typing import Optional
@@ -24,6 +25,20 @@ try:
     HAS_MACOS_SPEECH = HAS_MACOS_SPEECH_IMPORT
 except ImportError:
     HAS_MACOS_SPEECH = False
+
+# Try to import Groq ASR backend
+try:
+    from modules.speech_to_text_groq import get_groq_recognizer, HAS_GROQ
+except ImportError:
+    HAS_GROQ = False
+    get_groq_recognizer = None  # type: ignore
+
+# Try to import OpenAI ASR backend
+try:
+    from modules.speech_to_text_openai import get_openai_recognizer, HAS_OPENAI_CLIENT
+except ImportError:
+    HAS_OPENAI_CLIENT = False
+    get_openai_recognizer = None  # type: ignore
 
 
 class SpeechToTextRecognizer:
@@ -427,6 +442,22 @@ def get_speech_recognizer(
                 print("Falling back to Whisper...")
                 engine = 'whisper'  # Fallback to Whisper
     
+    # Use OpenAI cloud ASR (gpt-4o-transcribe etc.)
+    if engine == "openai":
+        rec = get_openai_recognizer() if get_openai_recognizer is not None else None
+        if rec is not None:
+            return rec
+        print("Warning: OpenAI ASR unavailable (missing package or OPENAI_API_KEY), falling back to Whisper")
+        engine = "whisper"
+
+    # Use Groq cloud ASR
+    if engine == "groq":
+        rec = get_groq_recognizer() if get_groq_recognizer is not None else None
+        if rec is not None:
+            return rec
+        print("Warning: Groq ASR unavailable (missing package or GROQ_API_KEY), falling back to Whisper")
+        engine = "whisper"
+
     # Use Whisper (default or fallback)
     if engine == "whisper":
         # #region agent log

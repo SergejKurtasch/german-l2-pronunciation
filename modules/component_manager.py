@@ -48,12 +48,20 @@ def initialize_asr_only():
             
             if asr_recognizer:
                 # Determine which engine was actually used
-                actual_engine = "whisper"
                 if hasattr(asr_recognizer, 'recognizer'):
                     actual_engine = "macos"
-                
+                elif hasattr(asr_recognizer, '_client'):
+                    # Both GroqSpeechRecognizer and OpenAISpeechRecognizer use _client
+                    actual_engine = "groq" if "Groq" in type(asr_recognizer).__name__ else "openai"
+                else:
+                    actual_engine = "whisper"
+
                 if actual_engine == "macos":
                     print("ASR recognizer (macOS Speech) initialized")
+                elif actual_engine in ("groq", "openai"):
+                    model_name = getattr(asr_recognizer, 'model', 'unknown')
+                    provider = "Groq" if actual_engine == "groq" else "OpenAI"
+                    print(f"ASR recognizer ({provider} {model_name}) initialized")
                 else:
                     model_name = getattr(config, 'ASR_MODEL', 'medium')
                     if requested_engine == "macos" and actual_engine == "whisper":
@@ -277,6 +285,26 @@ def initialize_components():
         except Exception as e:
             print(f"Warning: MFA aligner initialization failed: {e}")
             mfa_aligner = None
+
+
+def initialize_and_preload_validator(progress_callback=None) -> None:
+    """Initialize validator object and eagerly load all 22 phoneme pair models into cache."""
+    global optional_validator
+
+    if optional_validator is None:
+        try:
+            optional_validator = get_optional_validator()
+            print("Optional validator initialized")
+        except Exception as e:
+            print(f"Warning: validator init failed: {e}")
+            return
+
+    inner = getattr(optional_validator, 'validator', None)
+    if inner is None:
+        print("Validator not available, skipping model preload")
+        return
+
+    inner.preload_all_models(progress_callback=progress_callback)
 
 
 def load_models_in_background():

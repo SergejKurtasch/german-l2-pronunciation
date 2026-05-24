@@ -1,3 +1,14 @@
+---
+title: German Pronunciation Trainer
+emoji: 🎙️
+colorFrom: blue
+colorTo: green
+sdk: gradio
+sdk_version: "4.44.1"
+app_file: app.py
+pinned: false
+---
+
 # German Pronunciation Diagnostic App (L2-Trainer)
 
 A comprehensive diagnostic application for learning German pronunciation that compares expected phonemes (Gold Standard) with actually recognized phonemes from audio and provides detailed feedback with pronunciation tips.

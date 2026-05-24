@@ -19,12 +19,25 @@ MODEL_DEVICE = "auto"  # "auto", "cpu", "cuda", "mps"
 # ASR (Speech-to-Text) settings
 # Using OpenAI Whisper for transcribing audio to text
 ASR_ENABLED = True  # Enable/disable ASR functionality
-ASR_ENGINE = "whisper"  # "whisper" or "macos" - macOS Speech may timeout, Whisper is more reliable
-# Note: macOS Speech often times out (3s) and falls back to Whisper anyway, so using Whisper directly is faster
-ASR_MODEL = "medium"  # Whisper model size: tiny, base, small, medium, large (only for Whisper)
-ASR_LANGUAGE = "de"  # Language code for transcription (German: "de" for Whisper, "de-DE" for macOS Speech)
+ASR_ENGINE = "openai"  # "whisper", "macos", "openai", or "groq"
+# Recommended per environment:
+#   local macOS  → "openai"  (fast API, no RAM cost, gpt-4o-transcribe)
+#   HF Spaces    → "openai"  (same — no Whisper model on CPU, ~2s latency)
+#   offline      → "whisper" (local model, no API key needed)
+ASR_MODEL = "medium"  # Whisper model size: tiny, base, small, medium, large (only for engine="whisper")
+ASR_LANGUAGE = "de"  # Language code for transcription (German: "de" for API engines, "de-DE" for macOS Speech)
 ASR_DEVICE = None  # Device for ASR (None = auto-detect, "cpu", "cuda", "mps") - only for Whisper
 ASR_ALWAYS_RUN = False  # If False, skip ASR when text is already provided (saves ~6-7 seconds)
+
+# OpenAI API settings (used when ASR_ENGINE = "openai")
+# platform.openai.com → API Keys; set OPENAI_API_KEY in .env or shell
+OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
+OPENAI_ASR_MODEL: str = "gpt-4o-transcribe"  # best accuracy/price as of 2026; alt: "gpt-4o-mini-transcribe"
+
+# Groq API settings (used when ASR_ENGINE = "groq")
+# console.groq.com → API Keys; free tier: 14 400 s audio/day
+GROQ_API_KEY: Optional[str] = os.getenv("GROQ_API_KEY")
+GROQ_MODEL: str = "whisper-large-v3"
 
 # WER (Word Error Rate) threshold for skipping phoneme analysis
 # If WER > WER_THRESHOLD, skip detailed phoneme analysis and show only text comparison

@@ -30,12 +30,18 @@ except ImportError:
 
 
 def setup_espeak_library():
-    """Setup eSpeak NG library path for macOS."""
+    """Setup eSpeak NG library path for macOS and Linux."""
     for candidate in [
+        # macOS (Homebrew)
         Path('/opt/homebrew/lib/libespeak-ng.dylib'),
         Path('/opt/homebrew/opt/espeak-ng/lib/libespeak-ng.dylib'),
         Path('/opt/homebrew/lib/libespeak.dylib'),
         Path('/opt/homebrew/opt/espeak/lib/libespeak.dylib'),
+        # Linux (apt: espeak-ng)
+        Path('/usr/lib/x86_64-linux-gnu/libespeak-ng.so.1'),
+        Path('/usr/lib/aarch64-linux-gnu/libespeak-ng.so.1'),
+        Path('/usr/lib/libespeak-ng.so.1'),
+        Path('/usr/local/lib/libespeak-ng.so.1'),
     ]:
         if candidate.exists():
             os.environ['PHONEMIZER_ESPEAK_LIBRARY'] = str(candidate)

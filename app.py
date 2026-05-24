@@ -11,7 +11,6 @@ import soundfile as sf
 from pathlib import Path
 import tempfile
 import sys
-import threading
 import time
 import json
 import os
@@ -50,13 +49,155 @@ from modules.chat_utils import normalize_chat_history, add_to_chat_history
 from modules.component_manager import (
     initialize_components, load_models_in_background,
     initialize_asr_only, load_dictionaries_in_background,
-    load_phoneme_model_in_background, load_mfa_in_background
+    load_phoneme_model_in_background, load_mfa_in_background,
+    initialize_and_preload_validator,
 )
 import modules.component_manager as component_manager
 from modules.phoneme_validation import validate_single_phoneme
 from modules.ui import GRADIO_CUSTOM_CSS
 
 
+# ---------------------------------------------------------------------------
+# Startup loading helpers
+# ---------------------------------------------------------------------------
+
+def _startup_html(done: list, current: Optional[str]) -> str:
+    """Build the HTML string shown in the startup status component."""
+    if current is None:
+        # All done: collapse to a single slim bar
+        return (
+            '<div style="font-family:monospace;font-size:12px;padding:5px 14px;'
+            'background:#052e16;border-radius:6px;border:1px solid #16a34a;'
+            'color:#22c55e;text-align:center;">'
+            '&#10003;&nbsp;All models loaded — application ready to use.'
+            '</div>'
+        )
+    rows = []
+    for item in done:
+        rows.append(
+            f'<div style="color:#22c55e;margin:2px 0;">&#10003;&nbsp;<b>{item}</b></div>'
+        )
+    rows.append(
+        f'<div style="color:#f59e0b;margin:2px 0;">&#8987;&nbsp;{current}</div>'
+    )
+    inner = "\n".join(rows)
+    return (
+        '<div style="font-family:monospace;font-size:13px;line-height:1.7;'
+        'padding:10px 14px;background:#111827;border-radius:8px;'
+        'border:1px solid #374151;">'
+        + inner
+        + "</div>"
+    )
+
+
+def _startup_loading_sequence():
+    """
+    Generator executed by app.load().
+    Loads every component sequentially and yields HTML status updates.
+    Each yield immediately updates the status component in the browser.
+    """
+    # If everything is already loaded (e.g. a second browser tab opens), skip.
+    cm = component_manager
+    if (
+        cm.asr_recognizer is not None
+        and cm.phoneme_recognizer is not None
+        and cm.optional_validator is not None
+        and getattr(cm.optional_validator, "validator", None) is not None
+        and len(getattr(cm.optional_validator.validator, "models_cache", {})) > 0
+    ):
+        yield _startup_html(["All models already loaded"], None)
+        return
+
+    done: list[str] = []
+
+    # --- Step 1: ASR ---
+    _asr_engine = getattr(__import__('config'), 'ASR_ENGINE', 'whisper')
+    if _asr_engine == 'openai':
+        _asr_label = f"OpenAI ASR ({getattr(__import__('config'), 'OPENAI_ASR_MODEL', 'gpt-4o-transcribe')})"
+    elif _asr_engine == 'groq':
+        _asr_label = f"Groq ASR ({getattr(__import__('config'), 'GROQ_MODEL', 'whisper-large-v3')})"
+    elif _asr_engine == 'macos':
+        _asr_label = "macOS Speech"
+    else:
+        _asr_label = f"Whisper ASR ({getattr(__import__('config'), 'ASR_MODEL', 'medium')})"
+    yield _startup_html(done, f"Loading {_asr_label}...")
+    try:
+        initialize_asr_only()
+        done.append(_asr_label)
+    except Exception as exc:
+        done.append(f"{_asr_label} — WARNING: {exc}")
+
+    # --- Step 2: G2P dictionaries ---
+    yield _startup_html(done, "Loading G2P dictionaries (de_ipa.dsl, german_mfa.dict)...")
+    try:
+        load_dictionaries_in_background()
+        done.append("G2P dictionaries")
+    except Exception as exc:
+        done.append(f"G2P dictionaries — WARNING: {exc}")
+
+    # --- Step 3: wav2vec2 phoneme model ---
+    yield _startup_html(done, "Loading wav2vec2 phoneme model (facebook/wav2vec2-xlsr-53-espeak-cv-ft)...")
+    try:
+        load_phoneme_model_in_background()
+        done.append("wav2vec2 phoneme model")
+    except Exception as exc:
+        done.append(f"wav2vec2 — WARNING: {exc}")
+
+    # --- Step 4: Remaining lightweight components ---
+    yield _startup_html(done, "Initializing audio normalizer, aligner, diagnostic engine...")
+    try:
+        import modules.component_manager as _cm
+        import config as _cfg
+        from modules.audio_normalizer import get_audio_normalizer
+        from modules.phoneme_filtering import get_phoneme_filter
+        from modules.forced_alignment import get_forced_aligner
+        from modules.diagnostic_engine import get_diagnostic_engine
+
+        if _cm.audio_normalizer is None:
+            _cm.audio_normalizer = get_audio_normalizer()
+        if _cm.phoneme_filter is None:
+            _cm.phoneme_filter = get_phoneme_filter(
+                whitelist=_cfg.PHONEME_WHITELIST,
+                confidence_threshold=_cfg.CONFIDENCE_THRESHOLD,
+            )
+        if _cm.forced_aligner is None:
+            _cm.forced_aligner = get_forced_aligner(blank_id=_cfg.FORCED_ALIGNMENT_BLANK_ID)
+        if _cm.diagnostic_engine is None:
+            _cm.diagnostic_engine = get_diagnostic_engine()
+        done.append("Audio normalizer, phoneme filter, forced aligner, diagnostic engine")
+    except Exception as exc:
+        done.append(f"Support components — WARNING: {exc}")
+
+    # --- Step 5: Validator init + eager model preload (22 models) ---
+    yield _startup_html(done, "Initializing phoneme validator...")
+    try:
+        # Initialise the wrapper (discovers pairs, no model weights yet)
+        initialize_and_preload_validator(progress_callback=None)
+        inner = getattr(component_manager.optional_validator, "validator", None)
+    except Exception as exc:
+        inner = None
+        done.append(f"Validator init — WARNING: {exc}")
+
+    if inner is not None:
+        pairs = list(getattr(inner, "available_pairs", []))
+        total = len(pairs)
+        loaded_count = [0]
+
+        for i, pair in enumerate(pairs):
+            yield _startup_html(
+                done,
+                f"Loading validator model {i + 1}/{total}: {pair}...",
+            )
+            try:
+                if inner._load_model(pair) is not None:
+                    loaded_count[0] += 1
+            except Exception as exc:
+                print(f"Warning: preload failed for '{pair}': {exc}")
+
+        done.append(f"All {loaded_count[0]}/{total} validator models")
+
+    # --- Done ---
+    yield _startup_html(done, None)
 
 
 def process_pronunciation(
@@ -837,14 +978,22 @@ def process_pronunciation(
 
 def create_interface():
     """Create Gradio interface."""
-    
-    # Don't initialize components on startup - let them load in background
-    # This allows browser to open quickly
-    
+
     with gr.Blocks(title="German Pronunciation Diagnostic App (L2-Trainer)", theme=gr.themes.Monochrome(), css=GRADIO_CUSTOM_CSS) as app:
         gr.Markdown("""
         # German Pronunciation Diagnostic App (L2-Trainer)
         """)
+
+        # Startup loading status — visible while models load, shrinks to one line when done.
+        startup_status = gr.HTML(
+            value=_startup_html([], "Starting up — loading models, please wait..."),
+            visible=True,
+        )
+        app.load(
+            fn=_startup_loading_sequence,
+            inputs=None,
+            outputs=startup_status,
+        )
         
         # Main layout: Chatbot on left (70%), controls on right (30%)
         with gr.Row():
@@ -888,15 +1037,22 @@ def create_interface():
                         )
                         process_btn = gr.Button("Validate Pronunciation", variant="primary", size="sm")
         
-        # Examples - first row
+        def apply_gallery_example(sentence: str):
+            """Set example sentence and clear any recorded/uploaded audio."""
+            return sentence, gr.update(value=None)
+
+        # Examples - first row (run_on_click + fn clears Audio on gallery click)
         gr.Examples(
             examples=[
-                ["Hallo, wie geht es dir?", None],
-                ["Ich habe einen Apfel.", None],
-                ["Der Bär trägt einen Ball.", None],
-                ["Ich möchte ein Stück Kuchen.", None],
+                ["Hallo, wie geht es dir?"],
+                ["Ich habe einen Apfel."],
+                ["Der Bär trägt einen Ball."],
+                ["Ich möchte ein Stück Kuchen."],
             ],
-            inputs=[text_input, audio_input]
+            inputs=[text_input],
+            fn=apply_gallery_example,
+            outputs=[text_input, audio_input],
+            run_on_click=True,
         )
         
         # Custom button for loading text and audio
@@ -1010,17 +1166,14 @@ def _get_env_bool(name: str, default: bool) -> bool:
 
 if __name__ == "__main__":
     app = create_interface()
-    
-    # Start background model loading in a separate thread
-    # This happens while the server is starting up
-    background_thread = threading.Thread(target=load_models_in_background, daemon=True)
-    background_thread.start()
-    
-    # Launch the interface
-    # Browser will open quickly, models will load in background
-    server_name = os.getenv("GRADIO_SERVER_NAME", "127.0.0.1")
+
+    # Models are now loaded via app.load() inside create_interface(),
+    # so no separate background thread is needed here.
+
+    _on_hf_spaces = bool(os.getenv("SPACE_ID"))
+    server_name = os.getenv("GRADIO_SERVER_NAME", "0.0.0.0" if _on_hf_spaces else "127.0.0.1")
     server_port = int(os.getenv("GRADIO_SERVER_PORT", "7860"))
-    share = _get_env_bool("GRADIO_SHARE", True)
+    share = _get_env_bool("GRADIO_SHARE", not _on_hf_spaces)
     show_api = _get_env_bool("GRADIO_SHOW_API", False)
 
     app.launch(
