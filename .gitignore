@@ -1,0 +1,11 @@
+.cursor/
+cursor_scripts/
+*/.cache/
+*.log
+secrets.env
+.DS_Store
+__pycache__/
+*.env
+venv/
+venv-*/
+.venv/
