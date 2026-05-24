@@ -233,6 +233,19 @@ def _startup_loading_sequence():
 
         done.append(f"All {loaded_count[0]}/{total} validator models")
 
+    # --- Step 6: Full pipeline warmup via silent inference on example audio ---
+    _warmup_audio = PROJECT_ROOT / "data" / "audio" / "4aeeae88-0777-2c8c-5c93-2e844a462e49---8da112ef2540faff1fe1dfdf3f433e54.wav"
+    _warmup_text = "Plötzlich wurde dem Privatdetektiv klar, worum es dem Dieb eigentlich ging."
+    if _warmup_audio.exists():
+        yield _startup_html(done, "Warming up full inference pipeline (silent test run)..."), _btn_loading
+        try:
+            import librosa as _librosa
+            _audio_array, _sr = _librosa.load(str(_warmup_audio), sr=None, mono=True)
+            _ = process_pronunciation(_warmup_text, (_sr, _audio_array), enable_validation=False, chat_history=[])
+            done.append("Full inference pipeline warmed up")
+        except Exception as exc:
+            done.append(f"Inference warmup — WARNING: {exc}")
+
     # --- Done: unlock the button ---
     yield _startup_html(done, None), _btn_ready
 
