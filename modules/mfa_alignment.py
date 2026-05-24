@@ -14,7 +14,6 @@ import threading
 from pathlib import Path
 from typing import List, Optional
 from dataclasses import dataclass
-import json
 import time
 
 # Import PhonemeSegment from forced_alignment module
@@ -266,50 +265,8 @@ class MFAAligner:
             mfa_start = time.time()
             
             # Acquire lock to prevent multiple threads from unpacking MFA models simultaneously
-            # #region agent log
-            try:
-                log_path = Path(__file__).parent.parent / ".cursor" / "debug.log"
-                import threading as th
-                log_entry = {
-                    "sessionId": "debug-session",
-                    "runId": "mfa-lock-test",
-                    "hypothesisId": "MFA_LOCK_ACQUIRE",
-                    "location": "mfa_alignment.py:extract_phoneme_segments",
-                    "message": "Acquiring MFA lock",
-                    "data": {
-                        "thread_id": th.get_ident(),
-                        "audio_file": str(audio_path.name),
-                        "cache_hit": cache_key in self.cache
-                    },
-                    "timestamp": int(time.time() * 1000)
-                }
-                with open(log_path, 'a') as f:
-                    f.write(json.dumps(log_entry) + '\n')
-            except Exception:
-                pass
-            # #endregion
             
             with self._mfa_lock:
-                # #region agent log
-                try:
-                    log_path = Path(__file__).parent.parent / ".cursor" / "debug.log"
-                    log_entry = {
-                        "sessionId": "debug-session",
-                        "runId": "mfa-lock-test",
-                        "hypothesisId": "MFA_LOCK_ACQUIRED",
-                        "location": "mfa_alignment.py:extract_phoneme_segments",
-                        "message": "MFA lock acquired, starting subprocess",
-                        "data": {
-                            "thread_id": th.get_ident(),
-                            "audio_file": str(audio_path.name)
-                        },
-                        "timestamp": int(time.time() * 1000)
-                    }
-                    with open(log_path, 'a') as f:
-                        f.write(json.dumps(log_entry) + '\n')
-                except Exception:
-                    pass
-                # #endregion
                 # Use direct MFA binary (much faster than conda run, like in notebook)
                 if self.mfa_bin and Path(self.mfa_bin).exists():
                     # Direct execution - avoids conda run overhead
@@ -357,28 +314,6 @@ class MFAAligner:
                     timeout=60,
                     env=env
                 )
-                # #region agent log
-                try:
-                    log_path = Path(__file__).parent.parent / ".cursor" / "debug.log"
-                    log_entry = {
-                        "sessionId": "debug-session",
-                        "runId": "mfa-lock-test",
-                        "hypothesisId": "MFA_LOCK_RELEASE",
-                        "location": "mfa_alignment.py:extract_phoneme_segments",
-                        "message": "MFA subprocess completed, releasing lock",
-                        "data": {
-                            "thread_id": th.get_ident(),
-                            "audio_file": str(audio_path.name),
-                            "returncode": result.returncode,
-                            "has_stderr": bool(result.stderr)
-                        },
-                        "timestamp": int(time.time() * 1000)
-                    }
-                    with open(log_path, 'a') as f:
-                        f.write(json.dumps(log_entry) + '\n')
-                except Exception:
-                    pass
-                # #endregion
             
             mfa_elapsed = (time.time() - mfa_start) * 1000
             
@@ -508,51 +443,10 @@ class MFAAligner:
         total_elapsed_ms: float,
         audio_path: Path
     ):
-        """Log successful MFA alignment."""
-        try:
-            log_path = Path(__file__).parent.parent / ".cursor" / "debug.log"
-            log_entry = {
-                "sessionId": "debug-session",
-                "runId": "performance",
-                "hypothesisId": "MFA_ALIGNMENT_SUCCESS",
-                "location": "mfa_alignment.py:extract_phoneme_segments",
-                "message": "MFA alignment completed",
-                "data": {
-                    "segments_count": segments_count,
-                    "mfa_elapsed_ms": mfa_elapsed_ms,
-                    "total_elapsed_ms": total_elapsed_ms,
-                    "audio_file": str(audio_path.name)
-                },
-                "timestamp": int(time.time() * 1000),
-                "elapsed_ms": int(total_elapsed_ms)
-            }
-            with open(log_path, 'a') as f:
-                f.write(json.dumps(log_entry) + '\n')
-        except Exception:
-            pass  # Silently fail logging
-    
+        pass
+
     def _log_error(self, error_type: str, error_msg: str, elapsed_ms: float):
-        """Log MFA alignment error."""
-        try:
-            log_path = Path(__file__).parent.parent / ".cursor" / "debug.log"
-            log_entry = {
-                "sessionId": "debug-session",
-                "runId": "performance",
-                "hypothesisId": "MFA_ALIGNMENT_ERROR",
-                "location": "mfa_alignment.py:extract_phoneme_segments",
-                "message": f"MFA alignment error: {error_type}",
-                "data": {
-                    "error_type": error_type,
-                    "error_message": error_msg,
-                    "elapsed_ms": elapsed_ms
-                },
-                "timestamp": int(time.time() * 1000),
-                "elapsed_ms": int(elapsed_ms)
-            }
-            with open(log_path, 'a') as f:
-                f.write(json.dumps(log_entry) + '\n')
-        except Exception:
-            pass  # Silently fail logging
+        pass
 
 
 # Global instance

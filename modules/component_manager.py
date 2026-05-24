@@ -77,15 +77,25 @@ def initialize_asr_only():
 
 
 def load_dictionaries_in_background():
-    """Load G2P dictionaries in background after ASR is loaded."""
-    from modules.g2p_module import load_g2p_dictionaries
-    
+    """Load G2P dictionaries and warm up eSpeak subprocess."""
+    from modules.g2p_module import load_g2p_dictionaries, get_expected_phonemes
+
     print("Starting background dictionary loading...")
     try:
         load_g2p_dictionaries()
         print("All dictionaries loaded successfully in background!")
     except Exception as e:
         print(f"Warning: Dictionary loading failed: {e}")
+
+    # Warm up the eSpeak-ng subprocess so the first user request doesn't pay
+    # the subprocess-spawn cost (~5-10 s on cold CPU).
+    try:
+        import time as _t
+        t0 = _t.time()
+        _ = get_expected_phonemes("Hallo")
+        print(f"G2P eSpeak warmup done ({_t.time() - t0:.1f}s)")
+    except Exception as exc:
+        print(f"Warning: G2P warmup failed (non-fatal): {exc}")
 
 
 def load_phoneme_model_in_background():

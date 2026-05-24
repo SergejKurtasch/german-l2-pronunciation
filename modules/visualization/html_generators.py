@@ -414,12 +414,6 @@ def create_text_comparison_view(
     Returns:
         HTML string with text comparison
     """
-    # #region agent log
-    import json, time
-    log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-    with open(log_path, 'a') as f:
-        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"visualization.py:create_text_comparison_view_entry","message":"create_text_comparison_view called","data":{"expected_text":expected_text,"recognized_text":recognized_text,"wer_result":wer_result,"expected_is_none":expected_text is None,"recognized_is_none":recognized_text is None},"timestamp":int(time.time()*1000)})+'\n')
-    # #endregion
     
     # Handle None values
     if expected_text is None:
@@ -456,12 +450,6 @@ def create_text_comparison_view(
     
     html += "</div>"
     
-    # #region agent log
-    import json, time
-    log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-    with open(log_path, 'a') as f:
-        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"visualization.py:create_text_comparison_view_exit","message":"create_text_comparison_view completed","data":{"html_length":len(html)},"timestamp":int(time.time()*1000)})+'\n')
-    # #endregion
     
     return html
 

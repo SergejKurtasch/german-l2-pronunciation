@@ -272,12 +272,6 @@ def create_simple_phoneme_comparison(
     Returns:
         HTML string with simple comparison
     """
-    # #region agent log
-    import json
-    log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-    with open(log_path, 'a') as f:
-        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"visualization.py:416","message":"create_simple_phoneme_comparison entry","data":{"expected_phonemes":expected_phonemes,"recognized_phonemes":recognized_phonemes,"expected_count":len(expected_phonemes),"recognized_count":len(recognized_phonemes)},"timestamp":int(__import__('time').time()*1000)})+'\n')
-    # #endregion
     
     # Filter out word boundary markers and replace with visible separator
     from modules.visualization.helpers import format_phoneme
@@ -285,11 +279,6 @@ def create_simple_phoneme_comparison(
     expected_str = ' '.join(format_phoneme(ph) for ph in expected_phonemes)
     recognized_str = ' '.join(format_phoneme(ph) for ph in recognized_phonemes)
     
-    # #region agent log
-    log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-    with open(log_path, 'a') as f:
-        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"visualization.py:420","message":"after join operations","data":{"expected_str":expected_str,"recognized_str":recognized_str,"recognized_has_dash":'-' in recognized_str},"timestamp":int(__import__('time').time()*1000)})+'\n')
-    # #endregion
     
     html = "<div style='font-family: monospace; font-size: 14px;' data-block-id='recognized-phonemes'>"
     # Only show recognized phonemes, not expected (expected are shown in separate block)
@@ -297,13 +286,6 @@ def create_simple_phoneme_comparison(
         html += f"<p>{recognized_str}</p>"
     html += "</div>"
     
-    # #region agent log
-    import re
-    dash_positions = [m.start() for m in re.finditer(r'-', html)]
-    log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-    with open(log_path, 'a') as f:
-        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"G","location":"visualization.py:430","message":"before return html","data":{"html_full":html,"html_has_dash":'-' in html,"dash_count":html.count('-'),"dash_positions":dash_positions[:20],"recognized_str_in_html":recognized_str in html},"timestamp":int(__import__('time').time()*1000)})+'\n')
-    # #endregion
     
     return html
 

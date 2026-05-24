@@ -47,7 +47,6 @@ from pathlib import Path
 import tempfile
 import sys
 import time
-import json
 import os
 from typing import List, Dict, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -131,6 +130,9 @@ def _startup_loading_sequence():
     Loads every component sequentially and yields HTML status updates.
     Each yield immediately updates the status component in the browser.
     """
+    _btn_loading = gr.update(interactive=False)
+    _btn_ready   = gr.update(interactive=True)
+
     # If everything is already loaded (e.g. a second browser tab opens), skip.
     cm = component_manager
     if (
@@ -140,7 +142,7 @@ def _startup_loading_sequence():
         and getattr(cm.optional_validator, "validator", None) is not None
         and len(getattr(cm.optional_validator.validator, "models_cache", {})) > 0
     ):
-        yield _startup_html(["All models already loaded"], None)
+        yield _startup_html(["All models already loaded"], None), _btn_ready
         return
 
     done: list[str] = []
@@ -155,23 +157,23 @@ def _startup_loading_sequence():
         _asr_label = "macOS Speech"
     else:
         _asr_label = f"Whisper ASR ({getattr(__import__('config'), 'ASR_MODEL', 'medium')})"
-    yield _startup_html(done, f"Loading {_asr_label}...")
+    yield _startup_html(done, f"Loading {_asr_label}..."), _btn_loading
     try:
         initialize_asr_only()
         done.append(_asr_label)
     except Exception as exc:
         done.append(f"{_asr_label} — WARNING: {exc}")
 
-    # --- Step 2: G2P dictionaries ---
-    yield _startup_html(done, "Loading G2P dictionaries (de_ipa.dsl, german_mfa.dict)...")
+    # --- Step 2: G2P dictionaries + eSpeak warmup ---
+    yield _startup_html(done, "Loading G2P dictionaries + warming up eSpeak..."), _btn_loading
     try:
         load_dictionaries_in_background()
-        done.append("G2P dictionaries")
+        done.append("G2P dictionaries (loaded + warmed up)")
     except Exception as exc:
         done.append(f"G2P dictionaries — WARNING: {exc}")
 
     # --- Step 3: wav2vec2 phoneme model + warmup ---
-    yield _startup_html(done, "Loading wav2vec2 phoneme model + warmup inference (compiling PyTorch ops)...")
+    yield _startup_html(done, "Loading wav2vec2 phoneme model + warmup inference (compiling PyTorch ops)..."), _btn_loading
     try:
         load_phoneme_model_in_background()
         done.append("wav2vec2 phoneme model (loaded + warmed up)")
@@ -179,7 +181,7 @@ def _startup_loading_sequence():
         done.append(f"wav2vec2 — WARNING: {exc}")
 
     # --- Step 4: Remaining lightweight components ---
-    yield _startup_html(done, "Initializing audio normalizer, aligner, diagnostic engine...")
+    yield _startup_html(done, "Initializing audio normalizer, aligner, diagnostic engine..."), _btn_loading
     try:
         import modules.component_manager as _cm
         import config as _cfg
@@ -204,7 +206,7 @@ def _startup_loading_sequence():
         done.append(f"Support components — WARNING: {exc}")
 
     # --- Step 5: Validator init + eager model preload (22 models) ---
-    yield _startup_html(done, "Initializing phoneme validator...")
+    yield _startup_html(done, "Initializing phoneme validator..."), _btn_loading
     try:
         # Initialise the wrapper (discovers pairs, no model weights yet)
         initialize_and_preload_validator(progress_callback=None)
@@ -222,7 +224,7 @@ def _startup_loading_sequence():
             yield _startup_html(
                 done,
                 f"Loading validator model {i + 1}/{total}: {pair}...",
-            )
+            ), _btn_loading
             try:
                 if inner._load_model(pair) is not None:
                     loaded_count[0] += 1
@@ -231,8 +233,8 @@ def _startup_loading_sequence():
 
         done.append(f"All {loaded_count[0]}/{total} validator models")
 
-    # --- Done ---
-    yield _startup_html(done, None)
+    # --- Done: unlock the button ---
+    yield _startup_html(done, None), _btn_ready
 
 
 def process_pronunciation(
@@ -547,27 +549,6 @@ def process_pronunciation(
                     )
                     mfa_align_elapsed = (time.time() - mfa_align_start) * 1000
                     alignment_method = "MFA"
-                    
-                    # Log MFA alignment latency
-                    audio_duration = len(waveform) / config.SAMPLE_RATE
-                    log_path = PROJECT_ROOT / ".cursor" / "debug.log"
-                    with open(log_path, 'a') as f:
-                        f.write(json.dumps({
-                            "sessionId": "debug-session",
-                            "runId": "performance",
-                            "hypothesisId": "ALIGNMENT_LATENCY",
-                            "location": "app.py:process_pronunciation:alignment",
-                            "message": "Alignment completed",
-                            "data": {
-                                "method": "MFA",
-                                "latency_ms": mfa_align_elapsed,
-                                "segments_count": len(recognized_segments),
-                                "audio_duration_seconds": audio_duration
-                            },
-                            "timestamp": int(time.time() * 1000),
-                            "elapsed_ms": int(mfa_align_elapsed)
-                        }) + '\n')
-                    
                     print(f"MFA alignment completed: {len(recognized_segments)} segments in {mfa_align_elapsed:.0f}ms")
                 except Exception as e:
                     print(f"Warning: MFA alignment failed: {e}, falling back to CTC")
@@ -596,27 +577,7 @@ def process_pronunciation(
                         )
                         ctc_align_elapsed = (time.time() - ctc_align_start) * 1000
                         alignment_method = "CTC"
-                        
-                        # Log CTC alignment latency
-                        audio_duration = len(waveform) / config.SAMPLE_RATE
-                        log_path = PROJECT_ROOT / ".cursor" / "debug.log"
-                        with open(log_path, 'a') as f:
-                            f.write(json.dumps({
-                                "sessionId": "debug-session",
-                                "runId": "performance",
-                                "hypothesisId": "ALIGNMENT_LATENCY",
-                                "location": "app.py:process_pronunciation:alignment",
-                                "message": "Alignment completed",
-                                "data": {
-                                    "method": "CTC",
-                                    "latency_ms": ctc_align_elapsed,
-                                    "segments_count": len(recognized_segments),
-                                    "audio_duration_seconds": audio_duration
-                                },
-                                "timestamp": int(time.time() * 1000),
-                                "elapsed_ms": int(ctc_align_elapsed)
-                            }) + '\n')
-                        
+
                         # Update segment labels to IPA - use raw_phonemes for accurate IPA labels
                         # Note: segment count may differ from raw_phonemes count due to forced alignment
                         for i, segment in enumerate(recognized_segments):
@@ -1027,7 +988,7 @@ def create_interface():
         app.load(
             fn=_startup_loading_sequence,
             inputs=None,
-            outputs=startup_status,
+            outputs=[startup_status, process_btn],
         )
         
         # Main layout: Chatbot on left (70%), controls on right (30%)
@@ -1070,7 +1031,7 @@ def create_interface():
                             value=False,
                             show_label=True
                         )
-                        process_btn = gr.Button("Validate Pronunciation", variant="primary", size="sm")
+                        process_btn = gr.Button("Validate Pronunciation", variant="primary", size="sm", interactive=False)
         
         def apply_gallery_example(sentence: str):
             """Set example sentence and clear any recorded/uploaded audio."""

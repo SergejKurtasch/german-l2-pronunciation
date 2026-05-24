@@ -148,12 +148,6 @@ class DSLG2P:
         import re
         import unicodedata
         
-        # #region agent log
-        import json, time
-        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-        with open(log_path, 'a') as debug_f:
-            debug_f.write(json.dumps({"location":"g2p_module.py:_normalize_ipa_transcription","message":"Input transcription","data":{"transcription":transcription,"has_t_h":'tʰ' in transcription or 't ʰ' in transcription},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"A"})+'\n')
-        # #endregion
         
         # Remove leading/trailing slashes and whitespace
         cleaned = transcription.strip().strip('/').strip()
@@ -170,11 +164,6 @@ class DSLG2P:
         # Remove word boundaries and other special marks
         cleaned = cleaned.replace('|', '').replace('‖', '')
         
-        # #region agent log
-        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-        with open(log_path, 'a') as debug_f:
-            debug_f.write(json.dumps({"location":"g2p_module.py:_normalize_ipa_transcription","message":"After cleaning","data":{"cleaned":cleaned,"has_t_h":'tʰ' in cleaned or 't ʰ' in cleaned},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"A"})+'\n')
-        # #endregion
         
         # Split into phonemes (handle multi-character phonemes and combining characters)
         # This is similar to the parsing logic in _parse_phonemes_from_string
@@ -234,11 +223,6 @@ class DSLG2P:
                 if not matched:
                     i += 1
         
-        # #region agent log
-        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-        with open(log_path, 'a') as debug_f:
-            debug_f.write(json.dumps({"location":"g2p_module.py:_normalize_ipa_transcription","message":"Phonemes before normalization","data":{"phonemes":phonemes,"has_t_h":any('tʰ' in ph or 't ʰ' in ph for ph in phonemes)},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"A"})+'\n')
-        # #endregion
         
         # Apply phoneme normalization from phoneme_normalization_table.json
         if HAS_PHONEME_NORMALIZER and get_phoneme_normalizer:
@@ -246,11 +230,6 @@ class DSLG2P:
                 normalizer = get_phoneme_normalizer()
                 # Normalize each phoneme (source='dictionary' for DSL)
                 normalized_phonemes = normalizer.normalize_phoneme_list(phonemes, source='dictionary')
-                # #region agent log
-                log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-                with open(log_path, 'a') as debug_f:
-                    debug_f.write(json.dumps({"location":"g2p_module.py:_normalize_ipa_transcription","message":"Phonemes after normalization","data":{"normalized_phonemes":normalized_phonemes,"has_t_h":any('tʰ' in ph or 't ʰ' in ph for ph in normalized_phonemes)},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"B"})+'\n')
-                # #endregion
                 return normalized_phonemes
             except Exception as e:
                 print(f"Warning: Failed to normalize phonemes: {e}")
@@ -261,7 +240,6 @@ class DSLG2P:
     def _load_dsl(self):
         """Load DSL lexicon into memory, using cache if available."""
         import re
-        import json
         
         # Try to load from cache first
         if self._load_from_cache():
@@ -309,19 +287,11 @@ class DSLG2P:
                                 # (it will use MFA or eSpeak instead)
             
             load_time = time.time() - start_time
-            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-            with open(log_path, 'a') as debug_f:
-                debug_f.write(json.dumps({"location":"g2p_module.py:dsl_load","message":"DSL lexicon loaded","data":{"count":count,"sample_words":list(self.lexicon.keys())[:5]},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"C"})+'\n')
-            
             print(f"Loaded {count} words from DSL lexicon in {load_time:.2f} seconds.")
             
             # Save to cache for next time
             self._save_cache()
         except Exception as e:
-            import json
-            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-            with open(log_path, 'a') as debug_f:
-                debug_f.write(json.dumps({"location":"g2p_module.py:dsl_load_error","message":"DSL lexicon load error","data":{"error":str(e)},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"C"})+'\n')
             print(f"Error loading DSL lexicon: {e}")
 
     def lookup(self, word: str) -> Optional[List[str]]:
@@ -441,9 +411,6 @@ class LexiconG2P:
 
     def _load_lexicon(self):
         """Load lexicon into memory, using cache if available."""
-        # #region agent log
-        import json, time
-        # #endregion
         
         # Try to load from cache first
         if self._load_from_cache():
@@ -486,21 +453,11 @@ class LexiconG2P:
                                 self.lexicon[word] = phonemes
                             count += 1
             load_time = time.time() - start_time
-            # #region agent log
-            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-            with open(log_path, 'a') as debug_f:
-                debug_f.write(json.dumps({"location":"g2p_module.py:load","message":"Lexicon loaded","data":{"count":count,"sample_words":list(self.lexicon.keys())[:5]},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"C"})+'\n')
-            # #endregion
             print(f"Loaded {count} words from lexicon in {load_time:.2f} seconds.")
             
             # Save to cache for next time
             self._save_cache()
         except Exception as e:
-            # #region agent log
-            log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-            with open(log_path, 'a') as debug_f:
-                debug_f.write(json.dumps({"location":"g2p_module.py:load_error","message":"Lexicon load error","data":{"error":str(e)},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"C"})+'\n')
-            # #endregion
             print(f"Error loading lexicon: {e}")
 
     def lookup(self, word: str) -> Optional[List[str]]:
@@ -516,12 +473,6 @@ class LexiconG2P:
         # Normalize word (lowercase, remove some punctuation)
         clean_word = word.lower().strip(".,!?;:()\"")
         result = self.lexicon.get(clean_word)
-        # #region agent log
-        import json, time
-        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-        with open(log_path, 'a') as debug_f:
-            debug_f.write(json.dumps({"location":"g2p_module.py:lookup","message":"Lexicon lookup","data":{"word":word,"clean_word":clean_word,"found":result is not None,"phonemes":result},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"A"})+'\n')
-        # #endregion
         return result
 
 
@@ -553,13 +504,6 @@ class G2PConverter:
         if self._dicts_loaded:
             return
         
-        # #region agent log
-        import json
-        dict_load_start = time.time()
-        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-        with open(log_path, 'a') as f:
-            f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"g2p_module.py:_load_dictionaries:start","message":"Starting dictionary loading","data":{},"timestamp":int(time.time()*1000),"elapsed_ms":0})+'\n')
-        # #endregion
         
         # Load dictionaries in parallel threads
         dsl_lexicon = [None]
@@ -605,11 +549,6 @@ class G2PConverter:
         mfa_thread.join()
         
         dict_load_elapsed = (time.time() - dict_load_start) * 1000
-        # #region agent log
-        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-        with open(log_path, 'a') as f:
-            f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"g2p_module.py:_load_dictionaries:end","message":"Dictionary loading completed","data":{"dsl_time_ms":dsl_time[0],"mfa_time_ms":mfa_time[0],"total_time_ms":dict_load_elapsed},"timestamp":int(time.time()*1000),"elapsed_ms":int(dict_load_elapsed)})+'\n')
-        # #endregion
         
         # Assign results
         if dsl_error[0]:
@@ -792,20 +731,11 @@ class G2PConverter:
         # This regex finds words and non-words (spaces, punctuation)
         tokens = re.findall(r"[\w']+|[^\w\s]", text)
         
-        # #region agent log
-        import json, time
-        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-        with open(log_path, 'a') as debug_f:
-            debug_f.write(json.dumps({"location":"g2p_module.py:tokens","message":"Tokens identified","data":{"tokens":tokens},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"D"})+'\n')
-        # #endregion
 
         all_expected_phonemes = []
         current_char_pos = 0
         word_count = 0  # Track number of words processed
         
-        # #region agent log
-        token_processing_start = time.time()
-        # #endregion
         
         for token in tokens:
             # Find token position in original text to keep char_pos accurate
@@ -840,18 +770,8 @@ class G2PConverter:
                                 # Use normalized DSL phonemes
                                 phonemes = normalized_dsl_phonemes
                                 source = 'dsl'
-                                # #region agent log
-                                log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-                                with open(log_path, 'a') as debug_f:
-                                    debug_f.write(json.dumps({"location":"g2p_module.py:process_token","message":"Using DSL lexicon (normalized)","data":{"token":token,"raw_phonemes":dsl_phonemes,"normalized_phonemes":phonemes},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"B"})+'\n')
-                                # #endregion
                             else:
                                 # Normalization resulted in empty/invalid phonemes - skip DSL
-                                # #region agent log
-                                log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-                                with open(log_path, 'a') as debug_f:
-                                    debug_f.write(json.dumps({"location":"g2p_module.py:process_token","message":"DSL phonemes invalid after normalization, skipping DSL","data":{"token":token,"raw_phonemes":dsl_phonemes,"normalized_phonemes":normalized_dsl_phonemes},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"B"})+'\n')
-                                # #endregion
                                 phonemes = None  # Will try next source
                         except Exception as e:
                             print(f"Warning: Failed to normalize DSL phonemes for '{token}': {e}")
@@ -862,11 +782,6 @@ class G2PConverter:
                         # Normalizer not available - use DSL phonemes as-is
                         phonemes = dsl_phonemes
                         source = 'dsl'
-                        # #region agent log
-                        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-                        with open(log_path, 'a') as debug_f:
-                            debug_f.write(json.dumps({"location":"g2p_module.py:process_token","message":"Using DSL lexicon (no normalizer)","data":{"token":token,"phonemes":phonemes},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"B"})+'\n')
-                        # #endregion
             
             # Priority 2: Try MFA Lexicon (fallback)
             if not phonemes and self.mfa_lexicon:
@@ -874,19 +789,9 @@ class G2PConverter:
                 if mfa_phonemes:
                     phonemes = mfa_phonemes
                     source = 'mfa'
-                    # #region agent log
-                    log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-                    with open(log_path, 'a') as debug_f:
-                        debug_f.write(json.dumps({"location":"g2p_module.py:process_token","message":"Using MFA lexicon","data":{"token":token,"phonemes":phonemes},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"B"})+'\n')
-                    # #endregion
             
             # Priority 3: Fallback to eSpeak NG (last resort)
             if not phonemes and self.backend:
-                # #region agent log
-                log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-                with open(log_path, 'a') as debug_f:
-                    debug_f.write(json.dumps({"location":"g2p_module.py:process_token","message":"Using espeak fallback","data":{"token":token},"timestamp":int(time.time()*1000),"sessionId":"debug-session","runId":"run1","hypothesisId":"B"})+'\n')
-                # #endregion
                 try:
                     # Get phoneme string for this single word
                     phoneme_string = self.backend.phonemize([token], strip=True, njobs=1)[0]
@@ -952,11 +857,6 @@ class G2PConverter:
             current_char_pos = token_pos + len(token)
         
         token_processing_elapsed = (time.time() - token_processing_start) * 1000
-        # #region agent log
-        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-        with open(log_path, 'a') as f:
-            f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"g2p_module.py:get_expected_phonemes:token_processing","message":"Token processing completed","data":{"tokens_count":len(tokens),"phonemes_count":len(all_expected_phonemes)},"timestamp":int(time.time()*1000),"elapsed_ms":int(token_processing_elapsed)})+'\n')
-        # #endregion
         
         return all_expected_phonemes
     
