@@ -4,6 +4,41 @@ Main application with Gradio interface.
 """
 
 import gradio as gr
+
+# gradio_client ≤1.3 crashes when additionalProperties is a bool in a JSON schema
+# (raises TypeError: argument of type 'bool' is not iterable).
+# The root route calls get_api_info() which hits this path; url_ok() then sees
+# a 500 and raises ValueError: "When localhost is not accessible...".
+# Patch before any routes are served.
+try:
+    import gradio_client.utils as _gcu
+    _orig_schema_fn = _gcu._json_schema_to_python_type
+    def _patched_schema_fn(schema, defs=None):
+        if not isinstance(schema, dict):
+            return "Any"
+        return _orig_schema_fn(schema, defs)
+    _gcu._json_schema_to_python_type = _patched_schema_fn
+except Exception:
+    pass
+
+# starlette>=0.41 removed the deprecated TemplateResponse(name, context_dict) signature.
+# gradio 4.44.1 still uses the old form; the root route then gets an unhashable-dict
+# error which causes url_ok() to see a 500 and raises ValueError about localhost.
+# Restore backward compat by converting old-style calls to new-style.
+try:
+    from starlette.templating import Jinja2Templates as _J2T
+    _orig_tr = _J2T.TemplateResponse
+    def _compat_tr(self, *args, **kwargs):
+        if args and isinstance(args[0], str):
+            name = args[0]
+            ctx = dict(args[1]) if len(args) > 1 else {}
+            req = ctx.pop("request", None)
+            return _orig_tr(self, req, name, ctx, **kwargs)
+        return _orig_tr(self, *args, **kwargs)
+    _J2T.TemplateResponse = _compat_tr
+except Exception:
+    pass
+
 import numpy as np
 import torch
 import librosa
