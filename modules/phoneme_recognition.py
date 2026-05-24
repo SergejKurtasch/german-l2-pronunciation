@@ -216,24 +216,36 @@ class PhonemeRecognizer:
             
             print(f"Model loaded on device: {self.device}")
             print(f"Vocabulary size: {len(self.vocab)}")
-            
-            # Print sample of IPA phonemes from vocab (for debugging)
-            ipa_samples = [token for token in self.vocab.keys() 
-                          if any(char in token for char in 'ɪɛɔʊʏœøːɐʁçʃʒŋ') or 
-                          len(token) == 1 and token.isalpha()]
-            if ipa_samples:
-                print(f"Sample IPA phonemes in vocab: {ipa_samples[:20]}")
-            
-            # Warn if vocabulary is empty or very small (might indicate wrong model type)
+
             if len(self.vocab) < 20:
                 print(f"Warning: Vocabulary size ({len(self.vocab)}) is very small. "
                       f"This model may not be trained for phoneme recognition.")
-            
+
         except RuntimeError:
-            # Re-raise RuntimeError with our custom message
             raise
         except Exception as e:
             raise RuntimeError(f"Failed to load model {self.model_name}: {e}")
+
+        self._warmup_inference()
+
+    def _warmup_inference(self) -> None:
+        """Run a single silent dummy pass to trigger PyTorch JIT compilation.
+
+        Without this, the first user request compiles all ops on-the-fly,
+        adding 60-90 s on CPU. Called once at end of _load_model().
+        """
+        try:
+            import time as _t
+            t0 = _t.time()
+            dummy = np.zeros(16000, dtype=np.float32)  # 1 s of silence at 16 kHz
+            inp = self.processor(
+                dummy, sampling_rate=16000, return_tensors="pt"
+            ).input_values.to(self.device)
+            with torch.no_grad():
+                _ = self.model(inp).logits
+            print(f"Model warmup inference done ({_t.time() - t0:.1f}s)")
+        except Exception as exc:
+            print(f"Warning: warmup inference failed (non-fatal): {exc}")
     
     def recognize_phonemes(
         self,
@@ -242,80 +254,28 @@ class PhonemeRecognizer:
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Recognize phonemes from audio file.
-        
+
         Args:
             audio_path: Path to audio file
             sample_rate: Target sample rate (model expects 16kHz)
-            
+
         Returns:
             Tuple of (logits, emissions):
             - logits: Raw model output (batch, time, vocab_size)
             - emissions: Log-softmax of logits (for forced alignment)
         """
-        import json, time
-        rec_start = time.time()
-        
-        # Load audio
-        audio_load_start = time.time()
         audio, sr = librosa.load(audio_path, sr=sample_rate, mono=True)
-        audio_load_elapsed = (time.time() - audio_load_start) * 1000
-        # #region agent log
-        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-        with open(log_path, 'a') as f:
-            f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"phoneme_recognition.py:recognize_phonemes:after_audio_load","message":"Audio loaded for recognition","data":{"audio_length_samples":len(audio),"sample_rate":sr},"timestamp":int(time.time()*1000),"elapsed_ms":int(audio_load_elapsed)})+'\n')
-        # #endregion
-        
-        # Process audio through processor (or feature extractor if processor is just feature extractor)
-        process_start = time.time()
-        if hasattr(self.processor, 'feature_extractor'):
-            # Full processor with tokenizer
-            input_values = self.processor(
-                audio,
-                sampling_rate=sample_rate,
-                return_tensors="pt"
-            ).input_values.to(self.device)
-        else:
-            # Just feature extractor (no tokenizer)
-            input_values = self.processor(
-                audio,
-                sampling_rate=sample_rate,
-                return_tensors="pt"
-            ).input_values.to(self.device)
-        process_elapsed = (time.time() - process_start) * 1000
-        # #region agent log
-        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-        with open(log_path, 'a') as f:
-            f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"phoneme_recognition.py:recognize_phonemes:after_processing","message":"Audio processed through feature extractor","data":{"input_shape":list(input_values.shape)},"timestamp":int(time.time()*1000),"elapsed_ms":int(process_elapsed)})+'\n')
-        # #endregion
-        
-        # Get logits
-        inference_start = time.time()
+
+        input_values = self.processor(
+            audio,
+            sampling_rate=sample_rate,
+            return_tensors="pt"
+        ).input_values.to(self.device)
+
         with torch.no_grad():
             logits = self.model(input_values).logits
-        inference_elapsed = (time.time() - inference_start) * 1000
-        # #region agent log
-        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-        with open(log_path, 'a') as f:
-            f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"phoneme_recognition.py:recognize_phonemes:after_inference","message":"Model inference completed","data":{"logits_shape":list(logits.shape)},"timestamp":int(time.time()*1000),"elapsed_ms":int(inference_elapsed)})+'\n')
-        # #endregion
-        
-        # Compute emissions (log-softmax) for forced alignment
-        emissions_start = time.time()
+
         emissions = torch.log_softmax(logits, dim=-1)
-        emissions_elapsed = (time.time() - emissions_start) * 1000
-        # #region agent log
-        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-        with open(log_path, 'a') as f:
-            f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"phoneme_recognition.py:recognize_phonemes:after_emissions","message":"Emissions computed","data":{},"timestamp":int(time.time()*1000),"elapsed_ms":int(emissions_elapsed)})+'\n')
-        # #endregion
-        
-        total_elapsed = (time.time() - rec_start) * 1000
-        # #region agent log
-        log_path = Path(__file__).parent.parent / '.cursor' / 'debug.log'
-        with open(log_path, 'a') as f:
-            f.write(json.dumps({"sessionId":"debug-session","runId":"performance","hypothesisId":"PERF","location":"phoneme_recognition.py:recognize_phonemes:end","message":"Phoneme recognition completed","data":{"total_elapsed_ms":int(total_elapsed)},"timestamp":int(time.time()*1000),"elapsed_ms":int(total_elapsed)})+'\n')
-        # #endregion
-        
         return logits, emissions
     
     def get_vocab(self) -> Dict[str, int]:
