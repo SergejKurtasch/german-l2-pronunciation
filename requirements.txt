@@ -50,6 +50,5 @@ huggingface_hub>=0.19.3,<0.37.0
 # Utilities
 pathlib2>=2.3.7; python_version < '3.4'
 
-# Optional: second-stage phoneme validation (separate package; weights on Hugging Face, not in this repo)
-#   pip install git+https://github.com/SergejKurtasch/german-phoneme-validator.git
-# Models: https://huggingface.co/SergejKurt/german-phoneme-models (~1.74 GB on first download)
+# Second-stage phoneme validation (weights downloaded from HF Hub on first startup: ~1.74 GB)
+german-phoneme-validator @ git+https://github.com/SergejKurtasch/german-phoneme-validator.git

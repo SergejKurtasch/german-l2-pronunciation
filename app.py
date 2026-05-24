@@ -98,13 +98,28 @@ from modules.ui import GRADIO_CUSTOM_CSS
 def _startup_html(done: list, current: Optional[str]) -> str:
     """Build the HTML string shown in the startup status component."""
     if current is None:
-        # All done: collapse to a single slim bar
+        # Check for any warnings in the done list
+        warnings = [item for item in done if "WARNING" in item]
+        if not warnings:
+            return (
+                '<div style="font-family:monospace;font-size:12px;padding:5px 14px;'
+                'background:#052e16;border-radius:6px;border:1px solid #16a34a;'
+                'color:#22c55e;text-align:center;">'
+                '&#10003;&nbsp;All models loaded — application ready to use.'
+                '</div>'
+            )
+        # Show green bar with warning details below
+        warning_rows = "\n".join(
+            f'<div style="color:#fbbf24;margin:2px 0;">&#9888;&nbsp;{w}</div>'
+            for w in warnings
+        )
         return (
-            '<div style="font-family:monospace;font-size:12px;padding:5px 14px;'
-            'background:#052e16;border-radius:6px;border:1px solid #16a34a;'
-            'color:#22c55e;text-align:center;">'
-            '&#10003;&nbsp;All models loaded — application ready to use.'
-            '</div>'
+            '<div style="font-family:monospace;font-size:12px;padding:6px 14px;'
+            'background:#052e16;border-radius:6px;border:1px solid #16a34a;">'
+            '<div style="color:#22c55e;text-align:center;margin-bottom:4px;">'
+            '&#10003;&nbsp;Application ready (some components had warnings)</div>'
+            + warning_rows
+            + '</div>'
         )
     rows = []
     for item in done:
@@ -233,18 +248,28 @@ def _startup_loading_sequence():
 
         done.append(f"All {loaded_count[0]}/{total} validator models")
 
-    # --- Step 6: Full pipeline warmup via silent inference on example audio ---
-    _warmup_audio = PROJECT_ROOT / "data" / "audio" / "4aeeae88-0777-2c8c-5c93-2e844a462e49---8da112ef2540faff1fe1dfdf3f433e54.wav"
-    _warmup_text = "Plötzlich wurde dem Privatdetektiv klar, worum es dem Dieb eigentlich ging."
-    if _warmup_audio.exists():
-        yield _startup_html(done, "Warming up full inference pipeline (silent test run)..."), _btn_loading
-        try:
+    # --- Step 6: Full pipeline warmup via silent inference ---
+    yield _startup_html(done, "Warming up full inference pipeline (silent test run)..."), _btn_loading
+    try:
+        import numpy as _np
+        _warmup_audio_path = PROJECT_ROOT / "data" / "audio" / "4aeeae88-0777-2c8c-5c93-2e844a462e49---8da112ef2540faff1fe1dfdf3f433e54.wav"
+        _warmup_text = "Plötzlich wurde dem Privatdetektiv klar, worum es dem Dieb eigentlich ging."
+        # Use real audio if available and not an LFS pointer (LFS pointers are ~131 bytes)
+        if _warmup_audio_path.exists() and _warmup_audio_path.stat().st_size > 10_000:
             import librosa as _librosa
-            _audio_array, _sr = _librosa.load(str(_warmup_audio), sr=None, mono=True)
-            _ = process_pronunciation(_warmup_text, (_sr, _audio_array), enable_validation=False, chat_history=[])
-            done.append("Full inference pipeline warmed up")
-        except Exception as exc:
-            done.append(f"Inference warmup — WARNING: {exc}")
+            _audio_array, _sr = _librosa.load(str(_warmup_audio_path), sr=None, mono=True)
+        else:
+            # Fallback: synthetic signal — triggers all the same PyTorch/G2P code paths
+            _sr = 16000
+            _t = _np.linspace(0, 3.0, int(_sr * 3.0), endpoint=False)
+            _audio_array = (
+                _np.sin(2 * _np.pi * 150 * _t) * 0.3
+                + _np.random.default_rng(42).standard_normal(int(_sr * 3.0)) * 0.05
+            ).astype(_np.float32)
+        _ = process_pronunciation(_warmup_text, (_sr, _audio_array), enable_validation=False, chat_history=[])
+        done.append("Full inference pipeline warmed up")
+    except Exception as exc:
+        done.append(f"Inference warmup — WARNING: {exc}")
 
     # --- Done: unlock the button ---
     yield _startup_html(done, None), _btn_ready
