@@ -38,7 +38,8 @@ jiwer>=3.0.0
 gradio>=4.44.1,<5.0.0
 
 # Hugging Face Hub (transformers cache; optional second-stage validator model download)
-huggingface_hub>=0.19.3
+# Upper bound: HfFolder removed in 0.37+, which breaks gradio 4.x oauth.py
+huggingface_hub>=0.19.3,<0.37.0
 
 # Utilities
 pathlib2>=2.3.7; python_version < '3.4'
