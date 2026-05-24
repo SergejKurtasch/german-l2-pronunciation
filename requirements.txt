@@ -35,7 +35,13 @@ groq>=0.9.0
 jiwer>=3.0.0
 
 # Frontend (4.44+ recommended: Chatbot type="messages", stable api_info/schema with current stacks)
-gradio>=4.44.1,<5.0.0
+# Pin gradio to exact version to avoid pulling incompatible fastapi/starlette
+gradio==4.44.1
+# fastapi<0.114 brings starlette<0.40 which still has the deprecated
+# TemplateResponse(name, context) form that gradio 4.44.1 uses.
+# starlette>=0.41 removed that form, causing unhashable-dict crash at startup.
+fastapi>=0.111.0,<0.114.0
+starlette>=0.36.0,<0.40.0
 
 # Hugging Face Hub (transformers cache; optional second-stage validator model download)
 # Upper bound: HfFolder removed in 0.37+, which breaks gradio 4.x oauth.py
