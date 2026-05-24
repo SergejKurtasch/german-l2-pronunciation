@@ -4,6 +4,23 @@ Main application with Gradio interface.
 """
 
 import gradio as gr
+
+# gradio_client ≤1.3 crashes when additionalProperties is a bool in a JSON schema
+# (raises TypeError: argument of type 'bool' is not iterable).
+# The root route calls get_api_info() which hits this path; url_ok() then sees
+# a 500 and raises ValueError: "When localhost is not accessible...".
+# Patch before any routes are served.
+try:
+    import gradio_client.utils as _gcu
+    _orig_schema_fn = _gcu._json_schema_to_python_type
+    def _patched_schema_fn(schema, defs=None):
+        if not isinstance(schema, dict):
+            return "Any"
+        return _orig_schema_fn(schema, defs)
+    _gcu._json_schema_to_python_type = _patched_schema_fn
+except Exception:
+    pass
+
 import numpy as np
 import torch
 import librosa
