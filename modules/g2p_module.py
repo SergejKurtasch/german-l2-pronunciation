@@ -548,8 +548,6 @@ class G2PConverter:
         dsl_thread.join()
         mfa_thread.join()
         
-        dict_load_elapsed = (time.time() - dict_load_start) * 1000
-        
         # Assign results
         if dsl_error[0]:
             print(f"Warning: Failed to load DSL lexicon: {dsl_error[0]}")
