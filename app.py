@@ -170,11 +170,11 @@ def _startup_loading_sequence():
     except Exception as exc:
         done.append(f"G2P dictionaries — WARNING: {exc}")
 
-    # --- Step 3: wav2vec2 phoneme model ---
-    yield _startup_html(done, "Loading wav2vec2 phoneme model (facebook/wav2vec2-xlsr-53-espeak-cv-ft)...")
+    # --- Step 3: wav2vec2 phoneme model + warmup ---
+    yield _startup_html(done, "Loading wav2vec2 phoneme model + warmup inference (compiling PyTorch ops)...")
     try:
         load_phoneme_model_in_background()
-        done.append("wav2vec2 phoneme model")
+        done.append("wav2vec2 phoneme model (loaded + warmed up)")
     except Exception as exc:
         done.append(f"wav2vec2 — WARNING: {exc}")
 
