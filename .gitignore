@@ -9,3 +9,9 @@ __pycache__/
 venv/
 venv-*/
 .venv/
+
+# Large dictionary/cache files — downloaded or generated at runtime
+data/dictionaries/de_ipa.dsl
+data/dictionaries/de_ipa.dsl.pickle
+data/dictionaries/german_mfa.dict.pickle
+data/dictionaries/metadata_wav_clean_hochdeutsch.csv
