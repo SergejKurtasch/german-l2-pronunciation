@@ -1119,7 +1119,6 @@ def create_interface():
                             label="Audio Input",
                             type="numpy",
                             sources=["microphone", "upload"],
-                            format="wav",
                             show_label=True
                         )
                     
