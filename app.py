@@ -339,7 +339,7 @@ def process_pronunciation(
         user_message = f"Text: {text if text else 'No text'}" + (f" | Validation: {'Enabled' if enable_validation else 'Disabled'}" if enable_validation else "")
         chat_history = add_to_chat_history(chat_history, user_message, error_html)
         # gr.update() keeps the audio component unchanged so a previous recording is not lost.
-        return (chat_history, text, gr.update())
+        return (chat_history, text)
 
     try:
         # Initialize components
@@ -355,14 +355,14 @@ def process_pronunciation(
                 error_html = "<div style='color: orange; padding: 10px;'>Audio recording is empty. Please record again.</div>"
                 user_message = f"Text: {text if text else 'No text'}"
                 chat_history = add_to_chat_history(chat_history, user_message, error_html)
-                return (chat_history, text, audio_file)
+                return (chat_history, text)
         elif isinstance(audio_file, (str, Path)):
             # Some Gradio versions pass a filepath even with type="numpy"
             path = Path(audio_file)
             if not path.exists() or path.stat().st_size < 100:
                 error_html = "<div style='color: orange; padding: 10px;'>Audio file not found or empty.</div>"
                 chat_history = add_to_chat_history(chat_history, f"Text: {text or 'No text'}", error_html)
-                return (chat_history, text, audio_file)
+                return (chat_history, text)
             audio_array, sample_rate = librosa.load(str(path), sr=None, mono=True)
         elif isinstance(audio_file, dict):
             # Gradio dict payload: {"name": path, "is_file": bool, ...}
@@ -373,11 +373,11 @@ def process_pronunciation(
             else:
                 error_html = f"<div style='color: red; padding: 10px;'>Unsupported audio payload (dict, no valid path).</div>"
                 chat_history = add_to_chat_history(chat_history, f"Text: {text or 'No text'}", error_html)
-                return (chat_history, text, audio_file)
+                return (chat_history, text)
         else:
             error_html = f"<div style='color: red; padding: 10px;'>Unrecognised audio format: {type(audio_file).__name__}. Please try uploading a WAV file.</div>"
             chat_history = add_to_chat_history(chat_history, f"Text: {text or 'No text'}", error_html)
-            return (chat_history, text, audio_file)
+            return (chat_history, text)
         
         # Save audio to temporary file
         audio_save_start = time.time()
@@ -429,18 +429,18 @@ def process_pronunciation(
                             error_html = "<div style='color: orange; padding: 10px;'>Could not recognize text from audio. Please try again or enter text manually.</div>"
                             user_message = f"Text: {text if text else 'Audio input'}" + (f" | Validation: {'Enabled' if enable_validation else 'Disabled'}" if enable_validation else "")
                             chat_history = add_to_chat_history(chat_history, user_message, error_html)
-                            return (chat_history, text, audio_file)
+                            return (chat_history, text)
                     except Exception as e:
                         print(f"Error: ASR failed: {e}")
                         error_html = f"<div style='color: red; padding: 10px;'>Failed to recognize text from audio: {str(e)}</div>"
                         user_message = f"Text: {text if text else 'Audio input'}" + (f" | Validation: {'Enabled' if enable_validation else 'Disabled'}" if enable_validation else "")
                         chat_history = add_to_chat_history(chat_history, user_message, error_html)
-                        return (chat_history, text, audio_file)
+                        return (chat_history, text)
                 else:
                     error_html = "<div style='color: orange; padding: 10px;'>ASR is not available. Please enter text manually or enable ASR in configuration.</div>"
                     user_message = f"Text: {text if text else 'Audio input'}" + (f" | Validation: {'Enabled' if enable_validation else 'Disabled'}" if enable_validation else "")
                     chat_history = add_to_chat_history(chat_history, user_message, error_html)
-                    return (chat_history, text, audio_file)
+                    return (chat_history, text)
             elif component_manager.asr_recognizer and config.ASR_ENABLED and config.ASR_ALWAYS_RUN:
                 # Text is provided, ASR is optional (for comparison)
                 # Only run if ASR_ALWAYS_RUN is enabled to save time
@@ -533,7 +533,7 @@ def process_pronunciation(
                 
                 user_message = f"Text: {text}" + (f" | Validation: {'Enabled' if enable_validation else 'Disabled'}" if enable_validation else "")
                 chat_history = add_to_chat_history(chat_history, user_message, assistant_message)
-                return (chat_history, text, audio_file)
+                return (chat_history, text)
             
             # Stage 5: G2P - Get phonemes from recognized text (or expected text if ASR not available)
             # Use recognized text for phoneme analysis if available, otherwise use expected text
@@ -550,7 +550,7 @@ def process_pronunciation(
                 error_html = "<div style='color: red; padding: 10px;'>Failed to extract expected phonemes from text.</div>"
                 user_message = f"Text: {text_for_phonemes}" + (f" | Validation: {'Enabled' if enable_validation else 'Disabled'}" if enable_validation else "")
                 chat_history = add_to_chat_history(chat_history, user_message, error_html)
-                return (chat_history, text, audio_file)
+                return (chat_history, text)
             
             # Stage 3: Phoneme Recognition (Wav2Vec2 XLSR-53 eSpeak)
             phoneme_rec_start = time.time()
@@ -601,7 +601,7 @@ def process_pronunciation(
                 """
                 user_message = f"Text: {text_for_phonemes}" + (f" | Validation: {'Enabled' if enable_validation else 'Disabled'}" if enable_validation else "")
                 chat_history = add_to_chat_history(chat_history, user_message, assistant_message)
-                return (chat_history, text, audio_file)
+                return (chat_history, text)
             
             # Stage 5: Forced Alignment (for recognized phonemes)
             # Load waveform for forced alignment
@@ -1049,7 +1049,7 @@ def process_pronunciation(
             # Update chat history
             chat_history = add_to_chat_history(chat_history, user_message, assistant_message)
             
-            return (chat_history, text, audio_file)
+            return (chat_history, text)
         
         finally:
             # Clean up temp files (but keep trimmed_audio_path for user to listen)
@@ -1076,7 +1076,7 @@ def process_pronunciation(
         # Update chat history with error
         user_message = f"Text: {text if text else 'Audio input'}" + (f" | Validation: {'Enabled' if enable_validation else 'Disabled'}" if enable_validation else "")
         chat_history = add_to_chat_history(chat_history, user_message, error_html)
-        return (chat_history, text, audio_file)
+        return (chat_history, text)
 
 
 def create_interface():
@@ -1218,7 +1218,7 @@ def create_interface():
         process_btn.click(
             fn=process_pronunciation,
             inputs=[text_input, audio_input, validation_checkbox, chatbot],
-            outputs=[chatbot, text_input, audio_input]
+            outputs=[chatbot, text_input]
         )
 
         # Wire startup loader here — process_btn is now defined above.
