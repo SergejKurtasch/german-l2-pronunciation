@@ -252,20 +252,36 @@ def _startup_loading_sequence():
     yield _startup_html(done, "Warming up full inference pipeline (silent test run)..."), _btn_loading
     try:
         import numpy as _np
+        import soundfile as _sf
+        import librosa as _librosa
+        import tempfile as _tempfile
+
         _warmup_audio_path = PROJECT_ROOT / "data" / "audio" / "4aeeae88-0777-2c8c-5c93-2e844a462e49---8da112ef2540faff1fe1dfdf3f433e54.wav"
         _warmup_text = "Plötzlich wurde dem Privatdetektiv klar, worum es dem Dieb eigentlich ging."
+
         # Use real audio if available and not an LFS pointer (LFS pointers are ~131 bytes)
         if _warmup_audio_path.exists() and _warmup_audio_path.stat().st_size > 10_000:
-            import librosa as _librosa
             _audio_array, _sr = _librosa.load(str(_warmup_audio_path), sr=None, mono=True)
         else:
-            # Fallback: synthetic signal — triggers all the same PyTorch/G2P code paths
+            # Fallback: synthetic signal
             _sr = 16000
             _t = _np.linspace(0, 3.0, int(_sr * 3.0), endpoint=False)
             _audio_array = (
                 _np.sin(2 * _np.pi * 150 * _t) * 0.3
                 + _np.random.default_rng(42).standard_normal(int(_sr * 3.0)) * 0.05
             ).astype(_np.float32)
+            # Explicitly warm up libsndfile codec path (write→read a real WAV file)
+            # so that the first example-button click doesn't pay this cost.
+            with _tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as _f:
+                _warmup_tmp = _f.name
+            try:
+                _sf.write(_warmup_tmp, _audio_array, _sr)
+                _librosa.load(_warmup_tmp, sr=None, mono=True)
+            except Exception:
+                pass
+            finally:
+                Path(_warmup_tmp).unlink(missing_ok=True)
+
         _ = process_pronunciation(_warmup_text, (_sr, _audio_array), enable_validation=False, chat_history=[])
         done.append("Full inference pipeline warmed up")
     except Exception as exc:
@@ -952,9 +968,27 @@ def process_pronunciation(
             viz_raw_start = time.time()
             raw_phonemes_html = create_raw_phonemes_display(raw_phonemes)
             viz_raw_elapsed = (time.time() - viz_raw_start) * 1000
-            viz_elapsed = (time.time() - viz_start) * 1000            
+            viz_elapsed = (time.time() - viz_start) * 1000
             total_elapsed = (time.time() - start_time) * 1000
-            
+
+            # Per-stage timing summary — visible in HF Spaces container logs.
+            _timing_rows = [
+                ("init_components",  init_elapsed),
+                ("audio_save",       audio_save_elapsed),
+                ("g2p",              g2p_elapsed),
+                ("phoneme_rec",      phoneme_rec_elapsed),
+                ("filter",           filter_elapsed),
+                ("alignment",        alignment_elapsed),
+                ("needleman_wunsch", nw_elapsed),
+                ("per_calc",         per_elapsed),
+                ("diagnostic",       diagnostic_elapsed),
+                ("validation",       validation_elapsed),
+                ("visualization",    viz_elapsed),
+                ("TOTAL",            total_elapsed),
+            ]
+            _timing_str = "  ".join(f"{k}={v:.0f}ms" for k, v in _timing_rows)
+            print(f"[TIMING] {_timing_str}")
+
             # Build chat message with expandable phoneme details
             phoneme_details_html = f"""
             <details style="margin-top: 10px;">
@@ -1086,65 +1120,37 @@ def create_interface():
             run_on_click=True,
         )
         
+        def _load_example_audio(audio_path: Path):
+            """Load audio from path; returns (sr, array) tuple or None if file is missing/LFS pointer."""
+            # LFS pointer files are ~131 bytes — real WAV files are always >10 KB.
+            # Trying to open a pointer with libsndfile causes it to probe every codec
+            # (30-60 s on a cold container) before raising an error.
+            if not audio_path.exists() or audio_path.stat().st_size < 10_000:
+                return None
+            try:
+                audio_array, sample_rate = librosa.load(str(audio_path), sr=None, mono=True)
+                return (sample_rate, audio_array)
+            except Exception as e:
+                print(f"Error loading example audio {audio_path.name}: {e}")
+                return None
+
         # Custom button for loading text and audio
         def load_example_text_and_audio():
-            """Load example text and audio file."""
             text = "Im Grundlagenstreit der Mathematik entspräche der nominalistischen Position die formalistische Richtung."
-            # Use relative path from project root
             audio_path = PROJECT_ROOT / "data" / "audio" / "4aeeae88-0777-2c8c-5c93-2e844a462e49---7c5cf6a7351fb3ca39004d5e49566c09.wav"
-            
-            # Load audio file if it exists
-            if audio_path.exists():
-                try:
-                    audio_array, sample_rate = librosa.load(str(audio_path), sr=None, mono=True)
-                    # Gradio expects (sample_rate, audio_array) tuple
-                    audio_tuple = (sample_rate, audio_array)
-                    return text, audio_tuple
-                except Exception as e:
-                    print(f"Error loading audio file: {e}")
-            
-            # Return text only if audio is not available
-            return text, None
-        
+            return text, _load_example_audio(audio_path)
+
         # Function for second example
         def load_example_text_and_audio_2():
-            """Load example text and audio file (example 2)."""
             text = """Aber für unsere Entwicklungspolitik, für unsere Außenpolitik, für unsere Kulturpolitik durch die Goethe-Institute ist das Thema „Teilhabe von Frauen" ein zentrales Thema."""
-            # Use relative path from project root
             audio_path = PROJECT_ROOT / "data" / "audio" / "4aeeae88-0777-2c8c-5c93-2e844a462e49---0a05b797c25f88e74d0d8d69a4705187.wav"
-            
-            # Load audio file if it exists
-            if audio_path.exists():
-                try:
-                    audio_array, sample_rate = librosa.load(str(audio_path), sr=None, mono=True)
-                    # Gradio expects (sample_rate, audio_array) tuple
-                    audio_tuple = (sample_rate, audio_array)
-                    return text, audio_tuple
-                except Exception as e:
-                    print(f"Error loading audio file: {e}")
-            
-            # Return text only if audio is not available
-            return text, None
-        
+            return text, _load_example_audio(audio_path)
+
         # Function for third example
         def load_example_text_and_audio_3():
-            """Load example text and audio file (example 3)."""
             text = "Plötzlich wurde dem Privatdetektiv klar, worum es dem Dieb eigentlich ging."
-            # Use relative path from project root
             audio_path = PROJECT_ROOT / "data" / "audio" / "4aeeae88-0777-2c8c-5c93-2e844a462e49---8da112ef2540faff1fe1dfdf3f433e54.wav"
-            
-            # Load audio file if it exists
-            if audio_path.exists():
-                try:
-                    audio_array, sample_rate = librosa.load(str(audio_path), sr=None, mono=True)
-                    # Gradio expects (sample_rate, audio_array) tuple
-                    audio_tuple = (sample_rate, audio_array)
-                    return text, audio_tuple
-                except Exception as e:
-                    print(f"Error loading audio file: {e}")
-            
-            # Return text only if audio is not available
-            return text, None
+            return text, _load_example_audio(audio_path)
         
         # Second row of examples with custom buttons
         with gr.Row(equal_height=True):
