@@ -330,10 +330,16 @@ def process_pronunciation(
     text_is_empty = not text or not text.strip()
     
     if audio_file is None:
-        error_html = "<div style='color: orange; padding: 10px;'>Please record or upload audio.</div>"
+        error_html = (
+            "<div style='color: orange; padding: 10px;'>"
+            "No audio found. Please record via microphone or upload a WAV file, "
+            "then click <b>Validate Pronunciation</b>."
+            "</div>"
+        )
         user_message = f"Text: {text if text else 'No text'}" + (f" | Validation: {'Enabled' if enable_validation else 'Disabled'}" if enable_validation else "")
         chat_history = add_to_chat_history(chat_history, user_message, error_html)
-        return (chat_history, text, audio_file)
+        # gr.update() keeps the audio component unchanged so a previous recording is not lost.
+        return (chat_history, text, gr.update())
 
     try:
         # Initialize components
@@ -1167,19 +1173,23 @@ def create_interface():
         def load_example_text_and_audio():
             text = "Im Grundlagenstreit der Mathematik entspräche der nominalistischen Position die formalistische Richtung."
             audio_path = PROJECT_ROOT / "data" / "audio" / "4aeeae88-0777-2c8c-5c93-2e844a462e49---7c5cf6a7351fb3ca39004d5e49566c09.wav"
-            return text, _load_example_audio(audio_path)
+            audio = _load_example_audio(audio_path)
+            # If audio file unavailable (e.g. LFS pointer on HF Spaces), only update text.
+            return text, audio if audio is not None else gr.update()
 
         # Function for second example
         def load_example_text_and_audio_2():
             text = """Aber für unsere Entwicklungspolitik, für unsere Außenpolitik, für unsere Kulturpolitik durch die Goethe-Institute ist das Thema „Teilhabe von Frauen" ein zentrales Thema."""
             audio_path = PROJECT_ROOT / "data" / "audio" / "4aeeae88-0777-2c8c-5c93-2e844a462e49---0a05b797c25f88e74d0d8d69a4705187.wav"
-            return text, _load_example_audio(audio_path)
+            audio = _load_example_audio(audio_path)
+            return text, audio if audio is not None else gr.update()
 
         # Function for third example
         def load_example_text_and_audio_3():
             text = "Plötzlich wurde dem Privatdetektiv klar, worum es dem Dieb eigentlich ging."
             audio_path = PROJECT_ROOT / "data" / "audio" / "4aeeae88-0777-2c8c-5c93-2e844a462e49---8da112ef2540faff1fe1dfdf3f433e54.wav"
-            return text, _load_example_audio(audio_path)
+            audio = _load_example_audio(audio_path)
+            return text, audio if audio is not None else gr.update()
         
         # Second row of examples with custom buttons
         with gr.Row(equal_height=True):
