@@ -282,7 +282,12 @@ def _startup_loading_sequence():
             finally:
                 Path(_warmup_tmp).unlink(missing_ok=True)
 
+        # Warmup without validation first (covers the main phoneme pipeline)
         _ = process_pronunciation(_warmup_text, (_sr, _audio_array), enable_validation=False, chat_history=[])
+        # Warmup with validation if validator is available (covers feature extraction + model inference path)
+        _inner = getattr(getattr(component_manager, "optional_validator", None), "validator", None)
+        if _inner is not None and len(getattr(_inner, "models_cache", {})) > 0:
+            _ = process_pronunciation(_warmup_text, (_sr, _audio_array), enable_validation=True, chat_history=[])
         done.append("Full inference pipeline warmed up")
     except Exception as exc:
         done.append(f"Inference warmup — WARNING: {exc}")
@@ -329,19 +334,43 @@ def process_pronunciation(
         user_message = f"Text: {text if text else 'No text'}" + (f" | Validation: {'Enabled' if enable_validation else 'Disabled'}" if enable_validation else "")
         chat_history = add_to_chat_history(chat_history, user_message, error_html)
         return (chat_history, text, audio_file)
-    
+
     try:
         # Initialize components
         init_start = time.time()
         initialize_components()
         init_elapsed = (time.time() - init_start) * 1000
-        # Extract audio
+
+        # Extract audio — Gradio may send different types depending on source and version.
+        print(f"[AUDIO] type={type(audio_file).__name__}, value_summary={'tuple len=' + str(len(audio_file)) if isinstance(audio_file, tuple) else str(audio_file)[:120]}")
         if isinstance(audio_file, tuple):
             sample_rate, audio_array = audio_file
+            if audio_array is None or (hasattr(audio_array, '__len__') and len(audio_array) == 0):
+                error_html = "<div style='color: orange; padding: 10px;'>Audio recording is empty. Please record again.</div>"
+                user_message = f"Text: {text if text else 'No text'}"
+                chat_history = add_to_chat_history(chat_history, user_message, error_html)
+                return (chat_history, text, audio_file)
+        elif isinstance(audio_file, (str, Path)):
+            # Some Gradio versions pass a filepath even with type="numpy"
+            path = Path(audio_file)
+            if not path.exists() or path.stat().st_size < 100:
+                error_html = "<div style='color: orange; padding: 10px;'>Audio file not found or empty.</div>"
+                chat_history = add_to_chat_history(chat_history, f"Text: {text or 'No text'}", error_html)
+                return (chat_history, text, audio_file)
+            audio_array, sample_rate = librosa.load(str(path), sr=None, mono=True)
+        elif isinstance(audio_file, dict):
+            # Gradio dict payload: {"name": path, "is_file": bool, ...}
+            path_str = audio_file.get("name") or audio_file.get("path") or audio_file.get("url", "")
+            path = Path(path_str) if path_str else None
+            if path and path.exists():
+                audio_array, sample_rate = librosa.load(str(path), sr=None, mono=True)
+            else:
+                error_html = f"<div style='color: red; padding: 10px;'>Unsupported audio payload (dict, no valid path).</div>"
+                chat_history = add_to_chat_history(chat_history, f"Text: {text or 'No text'}", error_html)
+                return (chat_history, text, audio_file)
         else:
-            error_html = "<div style='color: red; padding: 10px;'>Invalid audio format.</div>"
-            user_message = f"Text: {text if text else 'No text'}" + (f" | Validation: {'Enabled' if enable_validation else 'Disabled'}" if enable_validation else "")
-            chat_history = add_to_chat_history(chat_history, user_message, error_html)
+            error_html = f"<div style='color: red; padding: 10px;'>Unrecognised audio format: {type(audio_file).__name__}. Please try uploading a WAV file.</div>"
+            chat_history = add_to_chat_history(chat_history, f"Text: {text or 'No text'}", error_html)
             return (chat_history, text, audio_file)
         
         # Save audio to temporary file
@@ -1090,6 +1119,7 @@ def create_interface():
                             label="Audio Input",
                             type="numpy",
                             sources=["microphone", "upload"],
+                            format="wav",
                             show_label=True
                         )
                     
