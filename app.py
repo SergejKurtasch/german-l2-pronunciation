@@ -1138,8 +1138,8 @@ def create_interface():
                         process_btn = gr.Button("Validate Pronunciation", variant="primary", size="sm", interactive=False)
         
         def apply_gallery_example(sentence: str):
-            """Set example sentence and clear any recorded/uploaded audio."""
-            return sentence, gr.update(value=None)
+            """Set example sentence; preserve any existing audio recording."""
+            return sentence, gr.update()
 
         # Examples - first row (run_on_click + fn clears Audio on gallery click)
         gr.Examples(
